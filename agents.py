@@ -10,8 +10,12 @@ import numpy as np
 class res_encoder(nn.Module):
     def __init__(self, obs_shape, device):
         super().__init__()
+        self.device = device
+
         # Use pretrained ResNet18 encoder
         self.model = resnet18(pretrained=True)
+        self.model.to(self.device)
+    
 
         # Transform the input to the correct size
         self.transform = transforms.Compose([transforms.Resize(224)])
@@ -30,8 +34,6 @@ class res_encoder(nn.Module):
         self.out_dim = out_shape[1]
         self.fc = nn.Linear(self.out_dim, self.repr_dim)
         self.ln = nn.LayerNorm(self.repr_dim)
-        
-        self.device = device
 
         # Initialization
         nn.init.orthogonal_(self.fc.weight.data)
