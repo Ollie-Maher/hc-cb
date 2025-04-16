@@ -84,6 +84,7 @@ class HC_CB_agent(nn.Module):
         self.output_size = config["output_size"]
         self.lr = config["lr"]
         self.gamma = config["gamma"]
+        self.epsilon = config["epsilon"]
         self.target_update_freq = config["target_update_freq"]
         self.update_count = 0
 

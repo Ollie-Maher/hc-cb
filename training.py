@@ -1,5 +1,6 @@
 # This file contains the training loop for the agent in the HCCB project.
 import torch
+import numpy as np
 
 def train(env, agent, target, buffer, storage, train_cfg):
     """
@@ -63,7 +64,7 @@ def run_Episode(env, max_steps, agent, buffer, storage):
     for step in range(max_steps):
         # Get action from agent
         q_values, hidden_state, next_cb_input = agent(state)
-        action = int(torch.argmax(q_values).item())
+        action = int((torch.argmax(q_values).item() if np.random.rand() > agent.epsilon else np.random.randint(0, q_values.shape[1])))
         # Take action in environment
         next_state, reward, done, *_ = env.step(action)
         next_state = next_state["image"] # Get the image from the state IMPLEMENT WRAPPER TO FIX THIS

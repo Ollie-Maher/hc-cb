@@ -29,6 +29,7 @@ AGENT_CB_SIZES = [512, 256] # Need biological data to set these sizes
 AGENT_OUTPUT_SIZE = 3
 AGENT_LR = 0.001
 AGENT_GAMMA = 0.99
+AGENT_EPSILON = 0.1
 AGENT_UPDATE_FREQ = 10
 
 # Other parameters
@@ -52,6 +53,7 @@ object_cfg = {
         "output_size": AGENT_OUTPUT_SIZE,
         "lr": AGENT_LR,
         "gamma": AGENT_GAMMA,
+        "epsilon": AGENT_EPSILON,
         "target_update_freq": AGENT_UPDATE_FREQ
     },
     "buffer": {
