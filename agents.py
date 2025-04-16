@@ -8,7 +8,7 @@ from torchvision.models import resnet18
 import numpy as np
 
 class res_encoder(nn.Module):
-    def __init__(self, obs_shape):
+    def __init__(self, obs_shape, device):
         super().__init__()
         # Use pretrained ResNet18 encoder
         self.model = resnet18(pretrained=True)
@@ -31,14 +31,18 @@ class res_encoder(nn.Module):
         self.fc = nn.Linear(self.out_dim, self.repr_dim)
         self.ln = nn.LayerNorm(self.repr_dim)
         
+        self.device = device
+
         # Initialization
         nn.init.orthogonal_(self.fc.weight.data)
         self.fc.bias.data.fill_(0.0)
 
+        self.to(self.device)
+
     @torch.no_grad()
     def forward_conv(self, obs: np.ndarray):
         # Convert the input to a tensor
-        obs = torch.from_numpy(obs).float()
+        obs = torch.tensor(obs, device = self.device).float()
         obs = obs.permute(2, 0, 1).unsqueeze(0)  # Change to (C, H, W) format
         # Normalize the input
         obs = obs / 255.0 - 0.5
@@ -85,7 +89,7 @@ class HC_CB_agent(nn.Module):
         self.device = device
 
         # Encoder 
-        self.encoder = res_encoder(image_shape)
+        self.encoder = res_encoder(image_shape, device)
         self.encoder.to(self.device)
         self.features_size = self.encoder.repr_dim # Output size
 
