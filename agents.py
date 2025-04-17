@@ -7,6 +7,18 @@ import torchvision.transforms as transforms
 from torchvision.models import resnet18
 import numpy as np
 
+
+class noise_layer(nn.Module):
+    def __init__(self, mean=0.0, std=1.0):
+        super().__init__()
+        self.mean = mean
+        self.std = std
+
+    def forward(self, x):
+        noise = torch.randn_like(x) * self.std + self.mean
+        return x + noise
+
+
 class res_encoder(nn.Module):
     def __init__(self, obs_shape, device):
         super().__init__()
@@ -88,25 +100,55 @@ class HC_CB_agent(nn.Module):
         self.target_update_freq = config["target_update_freq"]
         self.update_count = 0
 
+        # Noise params
+        self.noise = config["noise"] # Noise location
+        self.noise_params = {
+            "mean": 0,
+            "std": 1,
+        }
+
         # Device
         self.device = device
 
-        # Encoder 
-        self.encoder = res_encoder(image_shape, device)
+        # Encoder
+        features_extractor = res_encoder(image_shape, device)
+        if self.noise >= "encoder":
+            self.encoder = nn.Sequential(
+                features_extractor,
+                noise_layer(mean=self.noise_params["mean"], std=self.noise_params["std"])
+            )
+        else:
+            self.encoder = features_extractor
         self.encoder.to(self.device)
-        self.features_size = self.encoder.repr_dim # Output size
+        self.features_size = features_extractor.repr_dim # Output size
 
         # Hippocampus using GRU
         self.gru = nn.GRU(self.features_size + self.cb_sizes[1], self.hc_gru_size, device=self.device)
         self.ca1 = nn.Linear(self.hc_gru_size, self.hc_ca1_size, device=self.device)
         self.action = nn.Linear(self.hc_ca1_size, self.output_size, device=self.device)
 
-        # Cerebellum using linear layer
-        self.cb = nn.Sequential(
-            nn.Linear(self.hc_gru_size, self.cb_sizes[0], device=self.device),
-            nn.ReLU(),
-            nn.Linear(self.cb_sizes[0], self.cb_sizes[1], device=self.device)
-        )
+        # Cerebellum using linear layers w/ noise
+        if self.noise >= "cb_input":
+            self.cb = nn.Sequential(                
+                noise_layer(mean=self.noise_params["mean"], std=self.noise_params["std"]),
+                nn.Linear(self.hc_gru_size, self.cb_sizes[0], device=self.device),
+                nn.ReLU(),
+                nn.Linear(self.cb_sizes[0], self.cb_sizes[1], device=self.device)
+            )
+        elif self.noise >= "cb_output":
+            self.cb = nn.Sequential(                
+                nn.Linear(self.hc_gru_size, self.cb_sizes[0], device=self.device),
+                nn.ReLU(),
+                nn.Linear(self.cb_sizes[0], self.cb_sizes[1], device=self.device),
+                noise_layer(mean=self.noise_params["mean"], std=self.noise_params["std"])
+            )
+        else:
+            self.cb = nn.Sequential(
+                nn.Linear(self.hc_gru_size, self.cb_sizes[0], device=self.device),
+                nn.ReLU(),
+                nn.Linear(self.cb_sizes[0], self.cb_sizes[1], device=self.device)
+            )
+
 
         # Set learning according to type of agent
         if self.name >= "no HC" or is_target:
@@ -146,7 +188,7 @@ class HC_CB_agent(nn.Module):
 
         # Pass the input through the GRU
         out, self.gru_hidden = self.gru(hc_input, hidden_state)
-        out = self.ca1(out)
+        out = F.relu(self.ca1(F.relu(out)))
         out = self.action(out)
         out = F.softmax(out, dim=1)
 

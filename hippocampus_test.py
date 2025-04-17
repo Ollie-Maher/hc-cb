@@ -23,6 +23,7 @@ ENV_TASK_SWITCH = 1
 # Agent parameters
 AGENT_CLASS = "hippocampus"
 AGENT_NAME = "HC-CB" # Options: "HC-CB", "no HC-CB", "HC-no CB", "no HC-no CB"
+AGENT_NOISE = "" # "encoder", "cb_input", "cb_output"
 AGENT_HC_GRU_SIZE = 512
 AGENT_HC_CA1_SIZE = 512
 AGENT_CB_SIZES = [512, 256] # Need biological data to set these sizes
@@ -47,6 +48,7 @@ object_cfg = {
     "agent": {
         "class": AGENT_CLASS,
         "name": AGENT_NAME,
+        "noise": AGENT_NOISE,
         "hc_gru_size": AGENT_HC_GRU_SIZE,
         "hc_ca1_size": AGENT_HC_CA1_SIZE,
         "cb_sizes": AGENT_CB_SIZES,

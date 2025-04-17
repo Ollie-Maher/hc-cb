@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-data_path = "./experiments/test/results.npy"
+data_path = "./experiments/test1/results.npy"
 
 data = np.load(data_path)
 
