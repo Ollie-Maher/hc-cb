@@ -55,7 +55,6 @@ def run_Episode(env, max_steps, agent, buffer, storage):
     # Reset environment and agent
     state = env.reset()[0]["image"] # Get the image from the state IMPLEMENT WRAPPER TO FIX THIS
     agent.reset()
-    cb_input = agent.gru_hidden.detach() # Get the hidden state from the agent
 
     # Initialise path storage
     storage.new_path()
@@ -69,10 +68,9 @@ def run_Episode(env, max_steps, agent, buffer, storage):
         next_state, reward, done, *_ = env.step(action)
         next_state = next_state["image"] # Get the image from the state IMPLEMENT WRAPPER TO FIX THIS
         # Store experience in buffer
-        buffer.store(state, action, reward, next_state, done, hidden_state, cb_input)
+        buffer.store(state, action, reward, next_state, done)
         # Update state
         state = next_state
-        cb_input = next_cb_input # Cerebellum input for next buffer sample
         # Save path to storage
         storage.save_path(action, done)
         # End if episode is done
@@ -104,12 +102,11 @@ def update_Agent(agent, target, buffer, batch_size):
     # Sample a batch of experiences from the buffer
     if len(buffer) < batch_size:
         return  # Not enough samples to update
-    batch = buffer.sample(batch_size)
+    batch = buffer.sample()
     
     # Update the agent using the batch
-    for state, action, reward, next_state, done, hidden_state, cb_input in batch:
-        agent.train(target, state, action, reward, next_state, done, hidden_state, cb_input)
-    
+    for sequence in batch:
+        agent.train(target, *sequence)
     # Update the target network
     if agent.update_count % agent.target_update_freq == 0:
         target.load_state_dict(agent.state_dict())

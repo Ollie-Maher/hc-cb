@@ -115,19 +115,50 @@ class replay_buffer():
     '''
     def __init__(self, buffer_cfg):
         self.buffer_size = buffer_cfg["size"]
+        self.batch_size = buffer_cfg["batch_size"]
+        self.sequence_length = buffer_cfg["sequence_length"]
         self.buffer = deque(maxlen=self.buffer_size)
 
-    def store(self, state, action, reward, next_state, done, hidden_state, cb_input):
+    def store(self, state, action, reward, next_state, done):
         # Store the experience in the buffer
-        self.buffer.append((state, action, reward, next_state, done, hidden_state, cb_input))
+        self.buffer.append((state, action, reward, next_state, done))
     
-    def sample(self, batch_size):
-        # Sample a batch of experiences from the buffer
-        if len(self.buffer) < batch_size:
+    def sample(self):
+        # Sample a batch of experience sequences from the buffer
+        if len(self.buffer) < self.batch_size: # Check if there are enough samples in the buffer
             raise ValueError("Not enough samples in the buffer")
-        else:
-            indices = np.random.choice(len(self.buffer), batch_size, replace=False)
-            return [self.buffer[i] for i in indices]
+        
+        # Randomly sample indices upto length of buffer - sequence length
+        # Prevents sampling out-of-bounds
+        # Buffer is a deque so samples will scroll through
+        # Therefore removing newest samples does not prevent sampling them
+        indices = np.random.choice(len(self.buffer) - self.sequence_length, self.batch_size, replace=False)
+        
+        batch = [] # List of sequences
+
+        for i in indices:
+            # Create empty sequences
+            state_sequence = np.empty(self.sequence_length, dtype=np.ndarray)
+            action_sequence = torch.zeros(self.sequence_length, dtype=int)
+            reward_sequence = torch.zeros(self.sequence_length, dtype=float)
+            next_state_sequence = np.empty(self.sequence_length, dtype=np.ndarray)
+            done_sequence = torch.zeros(self.sequence_length, dtype=int)
+
+            for j in range(self.sequence_length): # Loop through the sequence length
+                done = self.buffer[i + j][4]
+                if done == 1: # Leave rest of sequence as zeros
+                    break
+
+                state_sequence[j] = self.buffer[i + j][0]
+                action_sequence[j] = self.buffer[i + j][1]
+                reward_sequence[j] = self.buffer[i + j][2]
+                next_state_sequence[j] = self.buffer[i + j][3]
+                done_sequence[j] = done
+            
+            batch.append((state_sequence, action_sequence, reward_sequence, next_state_sequence, done_sequence))
+        
+        return batch # Return the batch of sequences
+
         
     def __len__(self):
         # Return the current size of the buffer

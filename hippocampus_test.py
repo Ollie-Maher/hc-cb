@@ -28,15 +28,16 @@ AGENT_HC_GRU_SIZE = 512
 AGENT_HC_CA1_SIZE = 512
 AGENT_CB_SIZES = [512, 256] # Need biological data to set these sizes
 AGENT_OUTPUT_SIZE = 3
-AGENT_LR = 0.001
+AGENT_LR = 0.01
 AGENT_GAMMA = 0.99
 AGENT_EPSILON = 0.1
 AGENT_UPDATE_FREQ = 10
 
 # Other parameters
-EPISODES = 1
+EPISODES = 2000
 BUFFER_SIZE = 10000
 BATCH_SIZE = 32
+SEQUENCE_LENGTH = 10 # Number of steps to unroll the GRU for training
 
 # Config dictionaries
 object_cfg = {
@@ -59,7 +60,9 @@ object_cfg = {
         "target_update_freq": AGENT_UPDATE_FREQ
     },
     "buffer": {
-        "size": BUFFER_SIZE
+        "size": BUFFER_SIZE,
+        "batch_size": BATCH_SIZE,
+        "sequence_length": SEQUENCE_LENGTH
     },
     "storage": {
         "episodes": EPISODES,
