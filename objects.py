@@ -127,16 +127,15 @@ class replay_buffer():
     
     def sample(self):
         # Sample a batch of experience sequences from the buffer
-        if len(self.buffer) < self.batch_size: # Check if there are enough samples in the buffer
-            raise ValueError("Not enough samples in the buffer")
         
         # Randomly sample indices upto length of buffer - sequence length
         # Prevents sampling out-of-bounds
         # Buffer is a deque so samples will scroll through
         # Therefore removing newest samples does not prevent sampling them
-        indices = np.random.choice(len(self.buffer) - self.sequence_length, self.batch_size, replace=False)
+        indices = np.random.choice(len(self.buffer) - self.sequence_length, self.batch_size, replace=True)
         
         batch = [] # List of sequences
+        done = 0 # Done flag for the sequence
 
         for i in indices:
             # Create empty sequences
@@ -167,8 +166,7 @@ class replay_buffer():
             batch.append((state_sequence, action_sequence, reward_sequence, next_state_sequence, done_sequence))
         
         return batch # Return the batch of sequences
-
-        
+       
     def __len__(self):
         # Return the current size of the buffer
         return len(self.buffer)
