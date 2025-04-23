@@ -101,11 +101,9 @@ def update_Agent(agent, target, buffer, batch_size):
     Returns:
     None
     """
-    print("Updating agent...")
-
     
     # Sample a batch of experiences from the buffer
-    if len(buffer) < batch_size:
+    if len(buffer) < batch_size or len(buffer) < buffer.sequence_length:
         return  # Not enough samples to update
     batch = buffer.sample()
     
