@@ -65,8 +65,11 @@ def run_Episode(env, max_steps, agent, buffer, storage):
         q_values, hidden_state, next_cb_input = agent(state)
         action = int((torch.argmax(q_values).item() if np.random.rand() > agent.epsilon else np.random.randint(0, q_values.shape[1])))
         # Take action in environment
-        next_state, reward, done, *_ = env.step(action)
+        next_state, reward, done, trunc, *_ = env.step(action)
         next_state = next_state["image"] # Get the image from the state IMPLEMENT WRAPPER TO FIX THIS
+
+        done = done or trunc # Check if episode is done
+        
         # Store experience in buffer
         buffer.store(state, action, reward, next_state, done)
         # Update state

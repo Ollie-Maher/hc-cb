@@ -32,7 +32,7 @@ def make_Objects(object_cfg):
     image_shape = new_env.observation_space.spaces["image"].shape
 
     new_agent, new_target = get_agent(object_cfg["agent"], image_shape, device)
-    new_buffer = replay_buffer(object_cfg["buffer"])
+    new_buffer = replay_buffer(object_cfg["buffer"], device)
     new_store = storage(object_cfg["storage"]) 
 
     
@@ -113,11 +113,13 @@ class replay_buffer():
     - cb_input: The CA3 input to the cerebellum at t-1.
 
     '''
-    def __init__(self, buffer_cfg):
+    def __init__(self, buffer_cfg, device):
         self.buffer_size = buffer_cfg["size"]
         self.batch_size = buffer_cfg["batch_size"]
         self.sequence_length = buffer_cfg["sequence_length"]
         self.buffer = deque(maxlen=self.buffer_size)
+
+        self.device = device # Device for sample tensors
 
     def store(self, state, action, reward, next_state, done):
         # Store the experience in the buffer
@@ -139,15 +141,22 @@ class replay_buffer():
         for i in indices:
             # Create empty sequences
             state_sequence = np.empty(self.sequence_length, dtype=np.ndarray)
-            action_sequence = torch.zeros(self.sequence_length, dtype=int)
-            reward_sequence = torch.zeros(self.sequence_length, dtype=float)
+            action_sequence = torch.zeros(self.sequence_length, dtype=int, device=self.device)
+            reward_sequence = torch.zeros(self.sequence_length, dtype=float, device=self.device)
             next_state_sequence = np.empty(self.sequence_length, dtype=np.ndarray)
-            done_sequence = torch.zeros(self.sequence_length, dtype=int)
+            done_sequence = torch.zeros(self.sequence_length, dtype=int, device=self.device)
 
             for j in range(self.sequence_length): # Loop through the sequence length
-                done = self.buffer[i + j][4]
-                if done == 1: # Leave rest of sequence as zeros
+                if done == 1: # Leave rest of sequence as zeros; done from t-1
+                    for k in range(j, self.sequence_length):
+                        state_sequence[k] = np.zeros_like(self.buffer[i + j][0])
+                        action_sequence[k] = 0
+                        reward_sequence[k] = 0
+                        next_state_sequence[k] = np.zeros_like(self.buffer[i + j][0])
+                        done_sequence[k] = 0
                     break
+
+                done = self.buffer[i + j][4]
 
                 state_sequence[j] = self.buffer[i + j][0]
                 action_sequence[j] = self.buffer[i + j][1]
