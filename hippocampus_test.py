@@ -17,7 +17,7 @@ PATH = f"./HCCB/experiments/{EXPERIMENT_ID}"
 # Environment parameters
 ENV_NAME = "t-maze"
 ENV_MAX_STEPS = 100
-ENV_TASK_SWITCH = 1
+ENV_TASK_SWITCH = 100
 
 
 # Agent parameters

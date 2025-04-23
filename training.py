@@ -27,15 +27,13 @@ def train(env, agent, target, buffer, storage, train_cfg):
     # Training loop
     for episode in range(episodes):
         # Run episode
-        total_reward, total_steps = run_Episode(env, max_steps, agent, buffer, storage)
-        # Update the agent
-        update_Agent(agent, target, buffer, batch_size)
+        total_reward, total_steps = run_Episode(env, max_steps, agent, target, buffer, storage, batch_size)
         # Save the agent and data
         storage.store(episode, total_reward, total_steps)
         # Print progress
         print(f"Episode {episode + 1}/{episodes} completed.")
 
-def run_Episode(env, max_steps, agent, buffer, storage):
+def run_Episode(env, max_steps, agent, target, buffer, storage, batch_size):
     """
     Run a single episode of training.
 
@@ -69,13 +67,17 @@ def run_Episode(env, max_steps, agent, buffer, storage):
         next_state = next_state["image"] # Get the image from the state IMPLEMENT WRAPPER TO FIX THIS
 
         done = done or trunc # Check if episode is done
-        
+
         # Store experience in buffer
         buffer.store(state, action, reward, next_state, done)
         # Update state
         state = next_state
         # Save path to storage
         storage.save_path(action, done)
+
+        # Update the agent
+        update_Agent(agent, target, buffer, batch_size)
+
         # End if episode is done
         if done:
             break
