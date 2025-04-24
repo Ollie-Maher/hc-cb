@@ -167,6 +167,13 @@ class replay_buffer():
         
         return batch # Return the batch of sequences
        
+    def reward_check(self):
+        '''Checks if there is a non-zero reward in the buffer'''
+        for i in range(len(self.buffer)):
+            if self.buffer[i][2] != 0:
+                return True
+        return False
+
     def __len__(self):
         # Return the current size of the buffer
         return len(self.buffer)

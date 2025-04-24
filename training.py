@@ -105,6 +105,8 @@ def update_Agent(agent, target, buffer, batch_size):
     # Sample a batch of experiences from the buffer
     if len(buffer) < batch_size or len(buffer) < buffer.sequence_length:
         return  # Not enough samples to update
+    if not buffer.reward_check():
+        return # No rewards in the buffer
     batch = buffer.sample()
     
     # Update the agent using the batch

@@ -268,7 +268,7 @@ class HC_CB_agent(nn.Module):
         # Compute loss (using MSE)
         # target_q_values needs to be explicitly cast to float
         # because it is cast as double during calculation
-        loss = self.criterion(action_qs, target_q_values.float())
+        loss = self.criterion(action_qs, target_q_values.float().squeeze())
         
         # Backpropagation
         self.optimizer.zero_grad()
