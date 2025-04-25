@@ -202,7 +202,12 @@ class HC_CB_agent(nn.Module):
         
         return out, hidden_state.detach(), self.gru_hidden.detach() # Return q values, gru (CA3) hidden state at t-1, and hidden state at t (used for CB input at t+1)
     
-    def batch_forward(self, x):
+    def _reset_batch(self):
+        # Reset the prediction and hidden state for batch processing
+        self.batch_prediction = torch.zeros(self.cb_sizes[1], device=self.device)
+        self.batch_gru_hidden = torch.zeros(1, self.hc_gru_size, device=self.device)
+    
+    def batch_forward(self, x): # THIS NEEDS TO BE CHANGED SO IT DOESN'T INTERFERE WITH THE HIDDEN STATE
 
         # Get the batch size
         batch_size = x.shape[0]
@@ -211,7 +216,7 @@ class HC_CB_agent(nn.Module):
         # This is necessary to run the encoder on the entire batch
         x = np.stack(x, axis=0) # Shape (batch_size, H, W, C)
 
-        self.reset() # Reset the prediction and hidden state
+        self._reset_batch() # Reset the prediction and hidden state 
 
         # Run the input through the encoder
         features_sequence = self.encoder(x) # Shape (batch_size, features_size)
@@ -225,12 +230,12 @@ class HC_CB_agent(nn.Module):
             features = features_sequence[i].squeeze(0)
 
             # Concatenate the conv and prediction
-            hc_input = torch.cat((features, self.prediction.squeeze()), dim=0).unsqueeze(0)
+            hc_input = torch.cat((features, self.batch_prediction.squeeze()), dim=0).unsqueeze(0)
             # No batch dimension
             # hc_input must have shape (sequence length, features + predictions), sequence length = 1
         
             # Pass the input through the GRU
-            out, self.gru_hidden = self.gru(hc_input, self.gru_hidden)
+            out, self.batch_gru_hidden = self.gru(hc_input, self.batch_gru_hidden)
             out = F.relu(self.ca1(F.relu(out)))
             out = self.action(out)
             out = F.softmax(out, dim=1)
@@ -238,9 +243,9 @@ class HC_CB_agent(nn.Module):
             out_sequence[i] = out.squeeze(0) # Store the output for the current step
 
             # Pass the hidden activity through the cerebellum
-            self.prediction = self.cb(self.gru_hidden.detach())
+            self.batch_prediction = self.cb(self.batch_gru_hidden.detach())
 
-            prediction_sequence[i] = self.prediction.squeeze() # Store the prediction for the current step
+            prediction_sequence[i] = self.batch_prediction.squeeze() # Store the prediction for the current step
         
         return out_sequence, prediction_sequence # Return the output sequence and prediction sequence
 
