@@ -203,67 +203,45 @@ class HC_CB_agent(nn.Module):
         
         return out, hidden_state.detach(), self.gru_hidden.detach() # Return q values, gru (CA3) hidden state at t-1, and hidden state at t (used for CB input at t+1)
     
-    def _reset_batch(self):
-        # Reset the prediction and hidden state for batch processing
-        self.batch_prediction = torch.zeros(self.cb_sizes[1], device=self.device)
-        self.batch_gru_hidden = torch.zeros(1, self.hc_gru_size, device=self.device)
+    def _reset_sequence(self):
+        # Reset the prediction and hidden state for sequence processing
+        self.sequence_prediction = torch.zeros(self.cb_sizes[1], device=self.device)
+        self.sequence_gru_hidden = torch.zeros(1, self.hc_gru_size, device=self.device)
     
-    def batch_forward(self, x): 
+    def sequence_forward(self, x, hid_x): 
 
-        # Get the batch size
-        batch_size = x.shape[0]
-
-        self._reset_batch() # Reset the prediction and hidden state 
+        self._reset_sequence() # Reset the prediction and hidden state 
 
         # Run the input through the encoder
-        features_sequence = self.encoder(x) # Shape (batch_size, features_size)
+        features_sequence = self.encoder(x) # Shape (sequence_length, features_size)
 
+        cb_input = torch.cat((self.sequence_gru_hidden, hid_x), dim=0) # Shape (sequence_length, cb_sizes[0])
+        # Pass the sequence through cerebellum
+        prediction_sequence = self.cb(cb_input) # Shape (sequence_length, cb_sizes[1])
 
-        out_sequence = torch.zeros(batch_size, self.output_size, device=self.device) # Shape (batch_size, output_size)
-        prediction_sequence = torch.zeros(batch_size, self.cb_sizes[1], device=self.device) # Shape (batch_size, cb_sizes[1])
+        # Concatenate the conv and prediction
+        hc_input = torch.cat((features_sequence, prediction_sequence), dim=1) # Shape (sequence_length, features_size + cb_sizes[1])
+    
+        # Pass the input through the GRU
+        out, self.sequence_gru_hidden = self.gru(hc_input, self.sequence_gru_hidden)
+        out = F.relu(self.ca1(F.relu(out)))
+        out = self.action(out)
+        out = F.softmax(out, dim=1)
 
-        # Store the initial prediction and hidden state
-        for i in range(batch_size):
-            # Get the features for the current step
-            features = features_sequence[i].squeeze(0)
+        return out, prediction_sequence # Return the output sequence and prediction sequence
 
-            # Concatenate the conv and prediction
-            hc_input = torch.cat((features, self.batch_prediction.squeeze()), dim=0).unsqueeze(0)
-            # No batch dimension
-            # hc_input must have shape (sequence length, features + predictions), sequence length = 1
-        
-            # Pass the input through the GRU
-            out, self.batch_gru_hidden = self.gru(hc_input, self.batch_gru_hidden)
-            out = F.relu(self.ca1(F.relu(out)))
-            out = self.action(out)
-            out = F.softmax(out, dim=1)
-
-            out_sequence[i] = out.squeeze(0) # Store the output for the current step
-
-            # Pass the hidden activity through the cerebellum
-            self.batch_prediction = self.cb(self.batch_gru_hidden.detach())
-
-            prediction_sequence[i] = self.batch_prediction.squeeze() # Store the prediction for the current step
-        
-
-        return out_sequence, prediction_sequence # Return the output sequence and prediction sequence
-
-    def train(self, target_net, state_sequence, action_sequence, reward_sequence, next_state_sequence, done_sequence):
+    def train(self, target_net, state_sequence, hidden_sequence, action_sequence, reward_sequence, next_state_sequence, done_sequence):
         """
         Train the agent with sample sequences from the replay buffer.
         """
-        t1 = perf_counter()
         # Get the action Q-values for the current state sequence
-        q_values, predictions = self.batch_forward(state_sequence)
+        q_values, predictions = self.sequence_forward(state_sequence, hidden_sequence[:-1])
         
         action_qs = q_values.gather(1, action_sequence.unsqueeze(0)).squeeze() # Get the Q-values for the actions taken
 
         # Get the next Q-values for the next state sequence
         with torch.no_grad():
-            next_q_values, _ = target_net.batch_forward(next_state_sequence)
-        t2 = perf_counter()
-        print(f"Forward pass time: {t2 - t1:.4f} seconds")
-
+            next_q_values, _ = target_net.sequence_forward(next_state_sequence, hidden_sequence[1:])
         
         # Get max Q-values for the next state sequence
         next_max_values, _ = next_q_values.max(1)
@@ -272,18 +250,18 @@ class HC_CB_agent(nn.Module):
         # Compute target Q-values
         target_q_values = reward_sequence + self.gamma * next_max_values * (1 - done_sequence)
         
+        return action_qs, target_q_values.float().squeeze() # Return the action Q-values and target Q-values
+        '''
         # Compute loss (using MSE)
         # target_q_values needs to be explicitly cast to float
         # because it is cast as double during calculation
         loss = self.criterion(action_qs, target_q_values.float().squeeze())
-        
-        
-        
-        
+       
         # Backpropagation
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
+        '''
 
         
 

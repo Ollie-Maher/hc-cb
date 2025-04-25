@@ -71,7 +71,7 @@ def run_Episode(env, max_steps, agent, target, buffer, storage, batch_size):
         done = done or trunc # Check if episode is done
 
         # Store experience in buffer
-        buffer.store(state, action, reward, next_state, done)
+        buffer.store(state, next_cb_input.squeeze(), action, reward, next_state, done)
         # Update state
         state = next_state
         # Save path to storage
@@ -106,17 +106,31 @@ def update_Agent(agent, target, buffer, batch_size):
     # Sample a batch of experiences from the buffer
     if len(buffer) < batch_size or len(buffer) < buffer.sequence_length:
         return  # Not enough samples to update
-    #if not buffer.reward_check():
-    #    return # No rewards in the buffer
+    if not buffer.reward_check():
+        return # No rewards in the buffer
     batch = buffer.sample()
     
 
-    # Update the agent using the batch
     t1 = perf_counter()
+    batch_action_vals = []
+    batch_target_vals = []
+    # Update the agent using the batch
     for sequences in batch:
-        agent.train(target, *sequences)
+        action_vals, target_vals = agent.train(target, *sequences)
+        batch_action_vals.append(action_vals)
+        batch_target_vals.append(target_vals)
+    stacked_action_vals = torch.stack(batch_action_vals)
+    stacked_target_vals = torch.stack(batch_target_vals)
+
+    
+    # Calculate the loss
+    loss = agent.criterion(stacked_action_vals, stacked_target_vals)
+    # Backpropagation
+    agent.optimizer.zero_grad()
+    loss.backward()
+    agent.optimizer.step()
     t2 = perf_counter()
-    print(f"Time taken to update agent: {t2 - t1:.4f} seconds")
+    print(f"Update time: {t2 - t1:.4f} seconds")
 
     # Update the target network
     if agent.update_count % agent.target_update_freq == 0:

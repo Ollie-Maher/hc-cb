@@ -122,9 +122,9 @@ class replay_buffer():
 
         self.device = device # Device for sample tensors
 
-    def store(self, state, action, reward, next_state, done):
+    def store(self, state, hidden, action, reward, next_state, done):
         # Store the experience in the buffer
-        self.buffer.append((state, action, reward, next_state, done))
+        self.buffer.append((state, hidden, action, reward, next_state, done))
     
     def sample(self):
         # Sample a batch of experience sequences from the buffer
@@ -141,6 +141,7 @@ class replay_buffer():
         for i in indices:
             # Create empty sequences
             state_sequence = []
+            hidden_sequence = [] # Hidden state sequence for the agent
             action_sequence = torch.zeros(self.sequence_length, dtype=int, device=self.device)
             reward_sequence = torch.zeros(self.sequence_length, dtype=float, device=self.device)
             next_state_sequence = []
@@ -150,25 +151,28 @@ class replay_buffer():
                 if done == 1: # Leave rest of sequence as zeros; done from t-1
                     for k in range(j, self.sequence_length):
                         state_sequence.append(torch.zeros_like(self.buffer[i + j][0]))
+                        hidden_sequence.append(torch.zeros_like(self.buffer[i + j][1]))
                         action_sequence[k] = 0
                         reward_sequence[k] = 0
                         next_state_sequence.append(torch.zeros_like(self.buffer[i + j][0]))
                         done_sequence[k] = 0
                     break
 
-                done = self.buffer[i + j][4]
+                done = self.buffer[i + j][5]
 
                 state_sequence.append(self.buffer[i + j][0])
-                action_sequence[j] = self.buffer[i + j][1]
-                reward_sequence[j] = self.buffer[i + j][2]
-                next_state_sequence.append(self.buffer[i + j][3])
+                hidden_sequence.append(self.buffer[i + j][1])
+                action_sequence[j] = self.buffer[i + j][2]
+                reward_sequence[j] = self.buffer[i + j][3]
+                next_state_sequence.append(self.buffer[i + j][4])
                 done_sequence[j] = done
             
             # Convert sequences to tensors
             state_sequence = torch.stack(state_sequence)
             next_state_sequence = torch.stack(next_state_sequence)
+            hidden_sequence = torch.stack(hidden_sequence)
 
-            batch.append((state_sequence, action_sequence, reward_sequence, next_state_sequence, done_sequence))
+            batch.append((state_sequence, hidden_sequence, action_sequence, reward_sequence, next_state_sequence, done_sequence))
         
         return batch # Return the batch of sequences
        
