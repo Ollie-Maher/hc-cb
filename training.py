@@ -1,6 +1,7 @@
 # This file contains the training loop for the agent in the HCCB project.
 import torch
 import numpy as np
+from time import perf_counter
 
 def train(env, agent, target, buffer, storage, train_cfg):
     """
@@ -52,6 +53,7 @@ def run_Episode(env, max_steps, agent, target, buffer, storage, batch_size):
     
     # Reset environment and agent
     state = env.reset()[0]["image"] # Get the image from the state IMPLEMENT WRAPPER TO FIX THIS
+    state = torch.tensor(state, dtype=torch.float32, device=agent.device) # Add batch dimension and move to device
     agent.reset()
 
     # Initialise path storage
@@ -64,7 +66,7 @@ def run_Episode(env, max_steps, agent, target, buffer, storage, batch_size):
         action = int((torch.argmax(q_values).item() if np.random.rand() > agent.epsilon else np.random.randint(0, q_values.shape[1])))
         # Take action in environment
         next_state, reward, done, trunc, *_ = env.step(action)
-        next_state = next_state["image"] # Get the image from the state IMPLEMENT WRAPPER TO FIX THIS
+        next_state = torch.tensor(next_state["image"], dtype=torch.float32, device=agent.device) # Get the image from the state IMPLEMENT WRAPPER TO FIX THIS
 
         done = done or trunc # Check if episode is done
 
@@ -101,17 +103,21 @@ def update_Agent(agent, target, buffer, batch_size):
     Returns:
     None
     """
-    
     # Sample a batch of experiences from the buffer
     if len(buffer) < batch_size or len(buffer) < buffer.sequence_length:
         return  # Not enough samples to update
-    if not buffer.reward_check():
-        return # No rewards in the buffer
+    #if not buffer.reward_check():
+    #    return # No rewards in the buffer
     batch = buffer.sample()
     
+
     # Update the agent using the batch
-    for sequence in batch:
-        agent.train(target, *sequence)
+    t1 = perf_counter()
+    for sequences in batch:
+        agent.train(target, *sequences)
+    t2 = perf_counter()
+    print(f"Time taken to update agent: {t2 - t1:.4f} seconds")
+
     # Update the target network
     if agent.update_count % agent.target_update_freq == 0:
         target.load_state_dict(agent.state_dict())

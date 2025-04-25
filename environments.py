@@ -151,10 +151,9 @@ def main():
     print(env.observation_space.spaces["image"].shape)
     '''
     # enable manual control for testing
-    '''
+    
     manual_control = ManualControl(env, seed=42)
-    manual_control.start()'
-    '''
+    manual_control.start()
 
 if __name__=="__main__":
     main()

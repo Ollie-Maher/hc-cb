@@ -7,6 +7,8 @@ import torchvision.transforms as transforms
 from torchvision.models import resnet18
 import numpy as np
 
+from time import perf_counter
+
 
 class noise_layer(nn.Module):
     def __init__(self, mean=0.0, std=1.0):
@@ -36,10 +38,10 @@ class res_encoder(nn.Module):
         for param in self.model.parameters():
             param.requires_grad = False
 
-        self.repr_dim = 1024
+        self.repr_dim = 256
 
         # Get the output shape of the convolutional layers
-        x = np.random.rand(obs_shape[0], obs_shape[1], obs_shape[2])
+        x = torch.rand(obs_shape[0], obs_shape[1], obs_shape[2], device=self.device) # Example input
         with torch.no_grad():
             out_shape = self.forward_conv(x).shape
         
@@ -54,27 +56,26 @@ class res_encoder(nn.Module):
         self.to(self.device)
 
     @torch.no_grad()
-    def forward_conv(self, obs: np.ndarray):
-        # Convert the input to a tensor
-        obs = torch.tensor(obs, device = self.device).float()
+    def forward_conv(self, obs: torch.Tensor):
+
         if len(obs.shape) == 3:
             obs = obs.permute(2,0,1).unsqueeze(0)  # Add batch dimension & change to (C, H, W) format from (H, W, C)
         elif len(obs.shape) == 4:
             obs = obs.permute(0, 3, 1, 2) # Change to (B, C, H, W) format from (B, H, W, C)
         else:
             raise ValueError("Input shape must be (H, W, C) or (B, H, W, C)")
+        
         # Normalize the input
         obs = obs / 255.0 - 0.5
         obs = self.transform(obs)
-
+                    
         for name, module in self.model._modules.items():
             obs = module(obs)
             if name == "layer2":
                 break
-
+         
         # Flatten the output to (batch_size, -1)
         conv = obs.reshape(obs.size(0), -1)
-
         return conv
 
     def forward(self, obs):
@@ -90,7 +91,7 @@ class HC_CB_agent(nn.Module):
     def __init__(self, config: dict, image_shape, device, is_target=False):
         super().__init__()
         self.config = config
-
+        self.is_target = is_target
         # Type of agent
         self.name = config["name"]
 
@@ -207,19 +208,16 @@ class HC_CB_agent(nn.Module):
         self.batch_prediction = torch.zeros(self.cb_sizes[1], device=self.device)
         self.batch_gru_hidden = torch.zeros(1, self.hc_gru_size, device=self.device)
     
-    def batch_forward(self, x): # THIS NEEDS TO BE CHANGED SO IT DOESN'T INTERFERE WITH THE HIDDEN STATE
+    def batch_forward(self, x): 
 
         # Get the batch size
         batch_size = x.shape[0]
-
-        # Stack state sequences
-        # This is necessary to run the encoder on the entire batch
-        x = np.stack(x, axis=0) # Shape (batch_size, H, W, C)
 
         self._reset_batch() # Reset the prediction and hidden state 
 
         # Run the input through the encoder
         features_sequence = self.encoder(x) # Shape (batch_size, features_size)
+
 
         out_sequence = torch.zeros(batch_size, self.output_size, device=self.device) # Shape (batch_size, output_size)
         prediction_sequence = torch.zeros(batch_size, self.cb_sizes[1], device=self.device) # Shape (batch_size, cb_sizes[1])
@@ -247,25 +245,29 @@ class HC_CB_agent(nn.Module):
 
             prediction_sequence[i] = self.batch_prediction.squeeze() # Store the prediction for the current step
         
+
         return out_sequence, prediction_sequence # Return the output sequence and prediction sequence
 
     def train(self, target_net, state_sequence, action_sequence, reward_sequence, next_state_sequence, done_sequence):
         """
         Train the agent with sample sequences from the replay buffer.
         """
+        t1 = perf_counter()
         # Get the action Q-values for the current state sequence
         q_values, predictions = self.batch_forward(state_sequence)
         
-        action_qs = q_values.gather(1, action_sequence.unsqueeze(0)).squeeze(1) # Get the Q-values for the actions taken
+        action_qs = q_values.gather(1, action_sequence.unsqueeze(0)).squeeze() # Get the Q-values for the actions taken
 
         # Get the next Q-values for the next state sequence
-        next_q_values, _ = target_net.batch_forward(next_state_sequence)
+        with torch.no_grad():
+            next_q_values, _ = target_net.batch_forward(next_state_sequence)
+        t2 = perf_counter()
+        print(f"Forward pass time: {t2 - t1:.4f} seconds")
+
+        
         # Get max Q-values for the next state sequence
         next_max_values, _ = next_q_values.max(1)
 
-        # Remove size dimension
-        reward_sequence.squeeze_()
-        done_sequence.squeeze_()
 
         # Compute target Q-values
         target_q_values = reward_sequence + self.gamma * next_max_values * (1 - done_sequence)
@@ -275,24 +277,35 @@ class HC_CB_agent(nn.Module):
         # because it is cast as double during calculation
         loss = self.criterion(action_qs, target_q_values.float().squeeze())
         
+        
+        
+        
         # Backpropagation
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
 
+        
 
+        
 def main():
-    '''
+    
     #test res_encoder
     obs_shape = (56, 56, 3) # Example observation shape (H, W, C)
-    encoder = res_encoder(obs_shape, torch.device("cpu"))
+    encoder = res_encoder(obs_shape, torch.device("cuda"))
     print("Encoder created successfully.")
-    obs = np.random.rand(10, 56, 56, 3) # Example observation
-    features = encoder(obs)
-    print("Features shape:", features.shape) # Should be (1, 1024)
-    '''
-
     
+    tot_time = 0
+    for i in range(100):
+        obs = torch.rand(10, 56, 56, 3).to(torch.device("cuda")) # Example observation
+        t1 = perf_counter()
+        features = encoder(obs)
+        t2 = perf_counter()
+        tot_time += (t2 - t1)
+    print(f"Encoder time: {tot_time/100:.4f} seconds")
+    
+
+    '''
     # test HC_CB_agent
 
     # Parameters:
@@ -364,15 +377,19 @@ def main():
 
     obs_shape = (56, 56, 3) # Example observation shape (H, W, C)
     
-    test_agent = HC_CB_agent(object_cfg["agent"], obs_shape, torch.device("cpu"))
+    test_agent = HC_CB_agent(object_cfg["agent"], obs_shape, torch.device("cuda"))
     print("Agent created successfully.")
     obs = np.random.rand(56, 56, 3) # Example observation
     out = test_agent(obs)
     print("Output shape:", out[0].shape) # Should be (1, 3)
     seq_obs = np.random.rand(10, 56, 56, 3) # Example observation sequence
-    out_seq = test_agent.batch_forward(seq_obs)
+    t1 = perf_counter()
+    for i in range(1000):
+        out_seq = test_agent.batch_forward(seq_obs)    
+    t2 = perf_counter()
+    print(f"Agent time: {t2 - t1:.4f} seconds")
     print("Output sequence shape:", out_seq[0].shape) # Should be (10, 3)
-    
+    '''   
 
 
 if __name__ == "__main__":

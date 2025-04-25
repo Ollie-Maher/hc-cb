@@ -26,6 +26,7 @@ def make_Objects(object_cfg):
     """
     # Get device
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"Using device: {device}")
 
     # Unpack object configuration parameters
     new_env = get_env(object_cfg["env"])
@@ -139,30 +140,34 @@ class replay_buffer():
 
         for i in indices:
             # Create empty sequences
-            state_sequence = np.empty(self.sequence_length, dtype=np.ndarray)
+            state_sequence = []
             action_sequence = torch.zeros(self.sequence_length, dtype=int, device=self.device)
             reward_sequence = torch.zeros(self.sequence_length, dtype=float, device=self.device)
-            next_state_sequence = np.empty(self.sequence_length, dtype=np.ndarray)
+            next_state_sequence = []
             done_sequence = torch.zeros(self.sequence_length, dtype=int, device=self.device)
 
             for j in range(self.sequence_length): # Loop through the sequence length
                 if done == 1: # Leave rest of sequence as zeros; done from t-1
                     for k in range(j, self.sequence_length):
-                        state_sequence[k] = np.zeros_like(self.buffer[i + j][0])
+                        state_sequence.append(torch.zeros_like(self.buffer[i + j][0]))
                         action_sequence[k] = 0
                         reward_sequence[k] = 0
-                        next_state_sequence[k] = np.zeros_like(self.buffer[i + j][0])
+                        next_state_sequence.append(torch.zeros_like(self.buffer[i + j][0]))
                         done_sequence[k] = 0
                     break
 
                 done = self.buffer[i + j][4]
 
-                state_sequence[j] = self.buffer[i + j][0]
+                state_sequence.append(self.buffer[i + j][0])
                 action_sequence[j] = self.buffer[i + j][1]
                 reward_sequence[j] = self.buffer[i + j][2]
-                next_state_sequence[j] = self.buffer[i + j][3]
+                next_state_sequence.append(self.buffer[i + j][3])
                 done_sequence[j] = done
             
+            # Convert sequences to tensors
+            state_sequence = torch.stack(state_sequence)
+            next_state_sequence = torch.stack(next_state_sequence)
+
             batch.append((state_sequence, action_sequence, reward_sequence, next_state_sequence, done_sequence))
         
         return batch # Return the batch of sequences
