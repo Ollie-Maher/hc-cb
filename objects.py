@@ -179,7 +179,7 @@ class replay_buffer():
     def reward_check(self):
         '''Checks if there is a non-zero reward in the buffer'''
         for i in range(len(self.buffer)):
-            if self.buffer[i][2] != 0:
+            if self.buffer[i][3] != 0:
                 return True
         return False
 
