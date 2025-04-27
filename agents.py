@@ -57,7 +57,6 @@ class res_encoder(nn.Module):
 
     @torch.no_grad()
     def forward_conv(self, obs: torch.Tensor):
-
         if len(obs.shape) == 3:
             obs = obs.permute(2,0,1).unsqueeze(0)  # Add batch dimension & change to (C, H, W) format from (H, W, C)
         elif len(obs.shape) == 4:
@@ -73,17 +72,14 @@ class res_encoder(nn.Module):
             obs = module(obs)
             if name == "layer2":
                 break
-         
+        
         # Flatten the output to (batch_size, -1)
         conv = obs.reshape(obs.size(0), -1)
         return conv
 
-    def forward(self, obs):
-
-        conv = self.forward_conv(obs)
+    def forward(self, conv: torch.Tensor):
         out = self.fc(conv)
         out = self.ln(out)
-
         return out
 
 
@@ -118,6 +114,7 @@ class HC_CB_agent(nn.Module):
 
         # Encoder
         features_extractor = res_encoder(image_shape, device)
+        self.forward_conv = features_extractor.forward_conv
         if self.noise >= "encoder":
             self.encoder = nn.Sequential(
                 features_extractor,
@@ -180,7 +177,8 @@ class HC_CB_agent(nn.Module):
 
     def forward(self, x):
         # Run the input through the encoder
-        features = self.encoder(x).squeeze(0)  # Remove batch dimension
+        conv = self.forward_conv(x) # Shape (batch_size, features_size)
+        features = self.encoder(conv).squeeze(0)  # Remove batch dimension
 
         # Store the initial prediction and hidden state
         hidden_state = self.gru_hidden
@@ -200,20 +198,18 @@ class HC_CB_agent(nn.Module):
 
         # Pass the hidden activity through the cerebellum
         self.prediction = self.cb(self.gru_hidden.detach())
-        
-        return out, hidden_state.detach(), self.gru_hidden.detach() # Return q values, gru (CA3) hidden state at t-1, and hidden state at t (used for CB input at t+1)
+        return out, conv, hidden_state.detach(), self.gru_hidden.detach() # Return q values, gru (CA3) hidden state at t-1, and hidden state at t (used for CB input at t+1)
     
     def _reset_sequence(self):
         # Reset the prediction and hidden state for sequence processing
         self.sequence_prediction = torch.zeros(self.cb_sizes[1], device=self.device)
         self.sequence_gru_hidden = torch.zeros(1, self.hc_gru_size, device=self.device)
     
-    def sequence_forward(self, x, hid_x): 
-
+    def sequence_forward(self, x, hid_x):
         self._reset_sequence() # Reset the prediction and hidden state 
 
         # Run the input through the encoder
-        features_sequence = self.encoder(x) # Shape (sequence_length, features_size)
+        features_sequence = self.encoder(x.squeeze(1)) # Shape (sequence_length, features_size)
 
         cb_input = torch.cat((self.sequence_gru_hidden, hid_x), dim=0) # Shape (sequence_length, cb_sizes[0])
         # Pass the sequence through cerebellum
@@ -240,8 +236,7 @@ class HC_CB_agent(nn.Module):
         action_qs = q_values.gather(1, action_sequence.unsqueeze(0)).squeeze() # Get the Q-values for the actions taken
 
         # Get the next Q-values for the next state sequence
-        with torch.no_grad():
-            next_q_values, _ = target_net.sequence_forward(next_state_sequence, hidden_sequence[1:])
+        next_q_values, _ = target_net.sequence_forward(next_state_sequence, hidden_sequence[1:])
         
         # Get max Q-values for the next state sequence
         next_max_values, _ = next_q_values.max(1)
@@ -249,6 +244,7 @@ class HC_CB_agent(nn.Module):
 
         # Compute target Q-values
         target_q_values = reward_sequence + self.gamma * next_max_values * (1 - done_sequence)
+        
         
         return action_qs, target_q_values.float().squeeze() # Return the action Q-values and target Q-values
         '''

@@ -62,7 +62,7 @@ def run_Episode(env, max_steps, agent, target, buffer, storage, batch_size):
     # Run steps in the episode
     for step in range(max_steps):
         # Get action from agent
-        q_values, hidden_state, next_cb_input = agent(state)
+        q_values, conv, hidden_state, next_cb_input = agent(state)
         action = int((torch.argmax(q_values).item() if np.random.rand() > agent.epsilon else np.random.randint(0, q_values.shape[1])))
         # Take action in environment
         next_state, reward, done, trunc, *_ = env.step(action)
@@ -71,7 +71,7 @@ def run_Episode(env, max_steps, agent, target, buffer, storage, batch_size):
         done = done or trunc # Check if episode is done
 
         # Store experience in buffer
-        buffer.store(state, next_cb_input.squeeze(), action, reward, next_state, done)
+        buffer.store(conv, next_cb_input.squeeze(), action, reward, agent.forward_conv(next_state), done)
         # Update state
         state = next_state
         # Save path to storage
