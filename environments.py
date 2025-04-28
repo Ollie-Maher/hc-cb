@@ -25,11 +25,12 @@ from minigrid.utils.rendering import (
 class T_Maze(MiniGridEnv):
     def __init__(
         self,
-        size=7,
-        agent_start_pos=(1, 3),
+        size=5,
+        agent_start_pos=(1, 2),
         agent_start_dir=0,
         max_steps: int | None = 100,
         task_switch: int = 1,
+        agent_view_size: int = 3,
         **kwargs,
     ):
         self.agent_start_pos = agent_start_pos
@@ -48,6 +49,7 @@ class T_Maze(MiniGridEnv):
             mission_space=mission_space,
             grid_size=size,
             max_steps=max_steps,
+            agent_view_size=agent_view_size,
             **kwargs,
         )
 
@@ -60,48 +62,44 @@ class T_Maze(MiniGridEnv):
         # Gen grid
         self.grid = Grid(width, height)
         # Walls
-        self.grid.wall_rect(0, 1, width, height-2)
-        self.grid.set(4,2,Wall())
-        self.grid.set(4,4,Wall())
+        self.grid.wall_rect(0, 0, width, height)
+        self.grid.set(2,1,Wall())
+        self.grid.set(2,3,Wall())
         '''
         WALLS:
-        .......
-        XXXXXXX
-        X...X.X
-        X.....X
-        X...X.X
-        XXXXXXX
-        .......
+        XXXXX
+        X.X.X
+        X...X
+        X.X.X
+        XXXXX
         '''
-        # Coloured floors
-        self.grid.set(1,2,Floor(self.floor_colours[self.goal_up]))
-        self.grid.set(1,4,Floor(self.floor_colours[self.goal_up]))
+        # Coloured walls
+        self.grid.set(1,1,Colour_Wall(self.floor_colours[self.goal_up]))
+        self.grid.set(1,3,Colour_Wall(self.floor_colours[self.goal_up]))
 
         '''
-        +FLOORS:
-        .......
-        XXXXXXX
-        XF..X.X
-        X.....X
-        XF..X.X
-        XXXXXXX
+        +COLOURED WALLS:
+        XXXXX
+        XCX.X
+        X...X
+        XCX.X
+        XXXXX
         .......
         '''
         # Goal + terminal
         if self.goal_up:
-            self.grid.set(5,2,Goal())
-            self.grid.set(5,4,Fake_Goal())
+            self.grid.set(3,1,Goal())
+            self.grid.set(3,3,Fake_Goal())
         else:
-            self.grid.set(5,4,Goal())
-            self.grid.set(5,2,Fake_Goal())
+            self.grid.set(3,3,Goal())
+            self.grid.set(3,1,Fake_Goal())
         '''
         +GOAL:
-        .......
-        XXXXXXX
-        XFFFXGX
-        X.....X
-        XFFFXGX
-        XXXXXXX
+        XXXXX
+        XCXGX
+        X...X
+        XCXGX
+        XXXXX
         .......
         '''
 
@@ -128,6 +126,13 @@ class Fake_Goal(WorldObj):
 
     def can_overlap(self):
         return True
+
+    def render(self, img):
+        fill_coords(img, point_in_rect(0, 1, 0, 1), COLORS[self.color]) # Same as goal
+
+class Colour_Wall(WorldObj):
+    def __init__(self, color):
+        super().__init__("wall", color)
 
     def render(self, img):
         fill_coords(img, point_in_rect(0, 1, 0, 1), COLORS[self.color]) # Same as goal
