@@ -102,7 +102,6 @@ class T_Maze(MiniGridEnv):
         XXXXX
         .......
         '''
-
         # Place the agent
         if self.agent_start_pos is not None:
             self.agent_pos = self.agent_start_pos
@@ -119,7 +118,97 @@ class T_Maze(MiniGridEnv):
             self.goal_up = not self.goal_up # Swaps between goal up and goal down
         return super().reset()
         
+class water_maze(MiniGridEnv):
+    def __init__(
+        self,
+        size=7,
+        agent_start_dir=0,
+        max_steps: int | None = 100,
+        task_switch: int = 1,
+        agent_view_size: int = 3,
+        **kwargs,
+    ):
+        # Might need to implement and override for the agent start pos
+        self.task_position = 0
+        self.task_positions = [(5,5),(1,5),(5,1)]
+        self.agent_start_dir = agent_start_dir
 
+        mission_space = MissionSpace(mission_func=self._gen_mission)
+
+        self.task_switch = task_switch
+        self.task_count = 0
+
+        super().__init__(
+            mission_space=mission_space,
+            grid_size=size,
+            max_steps=max_steps,
+            agent_view_size=agent_view_size,
+            **kwargs,
+        )
+
+    @staticmethod
+    def _gen_mission():
+        return "Find the hidden goal"
+    
+    def _gen_grid(self, width, height):
+        # Gen grid
+        self.grid = Grid(width, height)
+        # Walls
+        self.grid.wall_rect(0, 0, width, height)
+        '''
+        WALLS:
+        XX...XX
+        X.....X
+        .......
+        .......
+        .......
+        X.....X
+        XX...XX
+        '''
+        # Coloured walls
+        for i in range(3):
+            self.grid.set(0,i+2,Colour_Wall('blue'))
+            self.grid.set(6,i+2,Colour_Wall('red'))
+            self.grid.set(i+2,0,Colour_Wall('yellow'))
+            self.grid.set(i+2,6,Colour_Wall('green'))
+        '''
+        COLOURED WALLS:
+        XXYYYXX
+        X.....X
+        B.....R
+        B.....R
+        B.....R
+        X.....X
+        XXGGGXX
+        '''
+        # Invisible goal
+        self.grid.set(2,2,Invisible_Goal())
+        '''
+        COLOURED WALLS:
+        XXYYYXX
+        X.....X
+        B.O...R
+        B.....R
+        B.....R
+        X.....X
+        XXGGGXX
+        '''
+        # Place the agent
+        self.agent_pos = self.task_positions[self.task_position]
+        self.agent_dir = self.agent_start_dir
+        
+    def reset(self, *, seed = None, options = None,):
+        self.task_count += 1
+        if self.task_count >= self.task_switch: # Switch task after task_switch episodes
+            self.task_count = 0
+            
+            self.task_position += 1
+            if self.task_position >= len(self.task_positions):
+                self.task_position = 0
+            
+        return super().reset()
+
+    
 class Fake_Goal(WorldObj):
     def __init__(self):
         super().__init__("lava", 'green')
@@ -130,6 +219,16 @@ class Fake_Goal(WorldObj):
     def render(self, img):
         fill_coords(img, point_in_rect(0, 1, 0, 1), COLORS[self.color]) # Same as goal
 
+class Invisible_Goal(WorldObj):
+    def __init__(self):
+        super().__init__("goal", 'green')
+
+    def can_overlap(self):
+        return True
+
+    def render(self, img):
+        pass
+
 class Colour_Wall(WorldObj):
     def __init__(self, color):
         super().__init__("wall", color)
@@ -138,7 +237,7 @@ class Colour_Wall(WorldObj):
         fill_coords(img, point_in_rect(0, 1, 0, 1), COLORS[self.color]) # Same as goal
 
 def main():
-    env = T_Maze(render_mode="human")
+    env = water_maze(render_mode="human")
     
     env = minigrid.wrappers.RGBImgPartialObsWrapper(env)
     state = env.reset(seed=42)
