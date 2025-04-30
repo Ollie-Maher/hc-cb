@@ -38,6 +38,8 @@ EPISODES = 2000
 BUFFER_SIZE = 10000
 BATCH_SIZE = 32
 SEQUENCE_LENGTH = 10 # Number of steps to unroll the GRU for training
+SEED = 873 #665, 873, 323
+
 
 # Config dictionaries
 object_cfg = {
@@ -78,6 +80,9 @@ train_cfg = {
 
 
 def main():
+    # Set random seed
+    torch.manual_seed(SEED)
+    np.random.seed(SEED)
     # Make objects
     env, agent, target, buffer, storage = make_Objects(object_cfg)
     print("Objects created successfully.")
