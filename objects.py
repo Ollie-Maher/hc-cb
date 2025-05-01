@@ -156,21 +156,21 @@ class replay_buffer():
             for j in range(self.sequence_length): # Loop through the sequence length
                 if done == 1: # Leave rest of sequence as zeros; done from t-1
                     for k in range(j, self.sequence_length):
-                        state_sequence.append(torch.zeros_like(self.buffer[i + j][0]))
-                        hidden_sequence.append(torch.zeros_like(self.buffer[i + j][1]))
+                        state_sequence.append(torch.zeros_like(buffer_sequence[j][0]))
+                        hidden_sequence.append(torch.zeros_like(buffer_sequence[j][1]))
                         action_sequence[k] = 0
                         reward_sequence[k] = 0
-                        next_state_sequence.append(torch.zeros_like(self.buffer[i + j][0]))
+                        next_state_sequence.append(torch.zeros_like(buffer_sequence[j][0]))
                         done_sequence[k] = 0
                     break
 
-                done = self.buffer[i + j][5]
+                done = buffer_sequence[j][5]
 
-                state_sequence.append(self.buffer[i + j][0])
-                hidden_sequence.append(self.buffer[i + j][1])
-                action_sequence[j] = self.buffer[i + j][2]
-                reward_sequence[j] = self.buffer[i + j][3]
-                next_state_sequence.append(self.buffer[i + j][4])
+                state_sequence.append(buffer_sequence[j][0])
+                hidden_sequence.append(buffer_sequence[j][1])
+                action_sequence[j] = buffer_sequence[j][2]
+                reward_sequence[j] = buffer_sequence[j][3]
+                next_state_sequence.append(buffer_sequence[j][4])
                 done_sequence[j] = done
             
             # Convert sequences to tensors
