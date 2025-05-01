@@ -5,6 +5,7 @@ import torch
 from agents import HC_CB_agent
 from environments import T_Maze
 from collections import deque
+from itertools import islice
 import numpy as np
 
 import minigrid
@@ -124,6 +125,9 @@ class replay_buffer():
 
     def store(self, state, hidden, action, reward, next_state, done):
         # Store the experience in the buffer
+        if len(self.buffer) >= self.buffer_size:
+            x = self.buffer.popleft() # Remove the oldest
+            del x # Free memory
         self.buffer.append((state, hidden, action, reward, next_state, done))
     
     def sample(self):
@@ -146,6 +150,8 @@ class replay_buffer():
             reward_sequence = torch.zeros(self.sequence_length, dtype=float, device=self.device)
             next_state_sequence = []
             done_sequence = torch.zeros(self.sequence_length, dtype=int, device=self.device)
+
+            buffer_sequence = list(islice(self.buffer, i, i + self.sequence_length)) # Get the sequence from the buffer
 
             for j in range(self.sequence_length): # Loop through the sequence length
                 if done == 1: # Leave rest of sequence as zeros; done from t-1

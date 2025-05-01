@@ -106,31 +106,41 @@ def update_Agent(agent, target, buffer, batch_size):
     # Sample a batch of experiences from the buffer
     if len(buffer) < batch_size or len(buffer) < buffer.sequence_length:
         return  # Not enough samples to update
-    if not buffer.reward_check():
-        return # No rewards in the buffer
+    #if not buffer.reward_check():
+    #    return # No rewards in the buffer
     batch = buffer.sample()
     
 
-    t1 = perf_counter()
     batch_action_vals = []
     batch_target_vals = []
+    batch_predictions = []
+    batch_next_q_vals = []
     # Update the agent using the batch
     for sequences in batch:
-        action_vals, target_vals = agent.train(target, *sequences)
+        action_vals, target_vals, predictions, next_q_vals = agent.train(target, *sequences)
         batch_action_vals.append(action_vals)
         batch_target_vals.append(target_vals)
+        batch_predictions.append(predictions)
+        batch_next_q_vals.append(next_q_vals)
     stacked_action_vals = torch.stack(batch_action_vals)
     stacked_target_vals = torch.stack(batch_target_vals)
+    stacked_predictions = torch.stack(batch_predictions)
+    stacked_next_q_vals = torch.stack(batch_next_q_vals)
 
     
-    # Calculate the loss
-    loss = agent.criterion(stacked_action_vals, stacked_target_vals)
+    # Calculate the hc loss
+    hc_loss = agent.criterion(stacked_action_vals, stacked_target_vals)
     # Backpropagation
-    agent.optimizer.zero_grad()
-    loss.backward()
-    agent.optimizer.step()
-    t2 = perf_counter()
-    print(f"Update time: {t2 - t1:.4f} seconds")
+    agent.hc_optimizer.zero_grad()
+    hc_loss.backward(retain_graph=True)  # Retain graph for the cerebellum loss
+    agent.hc_optimizer.step()
+
+    # Calculate the cerebellum loss
+    cereb_loss = agent.criterion(stacked_predictions, stacked_next_q_vals)
+    # Backpropagation
+    agent.cb_optimizer.zero_grad()
+    cereb_loss.backward()
+    agent.cb_optimizer.step()
 
     # Update the target network
     if agent.update_count % agent.target_update_freq == 0:
