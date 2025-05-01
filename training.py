@@ -145,5 +145,6 @@ def update_Agent(agent, target, buffer, batch_size):
     # Update the target network
     if agent.update_count % agent.target_update_freq == 0:
         target.load_state_dict(agent.state_dict())
+        agent.update_count = 0
     agent.update_count += 1
     
