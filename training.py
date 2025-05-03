@@ -55,6 +55,7 @@ def run_Episode(env, max_steps, agent, target, buffer, storage, batch_size):
     state = env.reset()[0]["image"] # Get the image from the state IMPLEMENT WRAPPER TO FIX THIS
     state = torch.tensor(state, dtype=torch.float32, device=agent.device) # Add batch dimension and move to device
     agent.reset()
+    update = False
 
     # Initialise path storage
     storage.new_path()
@@ -77,8 +78,11 @@ def run_Episode(env, max_steps, agent, target, buffer, storage, batch_size):
         # Save path to storage
         storage.save_path(action, done)
 
-        # Update the agent
-        update_Agent(agent, target, buffer, batch_size)
+        # Update the agent 
+        if update:
+            update_Agent(agent, target, buffer, batch_size)
+
+        update = not update # Toggle update flag
 
         # End if episode is done
         if done:
@@ -111,7 +115,6 @@ def update_Agent(agent, target, buffer, batch_size):
     batch = buffer.sample()
     
 
-    t1 = perf_counter()
     batch_action_vals = []
     batch_target_vals = []
     # Update the agent using the batch
@@ -129,11 +132,10 @@ def update_Agent(agent, target, buffer, batch_size):
     agent.optimizer.zero_grad()
     loss.backward()
     agent.optimizer.step()
-    t2 = perf_counter()
-    print(f"Update time: {t2 - t1:.4f} seconds")
 
     # Update the target network
-    if agent.update_count % agent.target_update_freq == 0:
-        target.load_state_dict(agent.state_dict())
-    agent.update_count += 1
+    soft_update_params(agent, target, agent.tau)
     
+def soft_update_params(net, target_net, tau):
+    for param, target_param in zip(net.parameters(), target_net.parameters()):
+        target_param.data.copy_(tau * param.data + (1 - tau) * target_param.data)

@@ -26,12 +26,12 @@ AGENT_NAME = "HC-CB" # Options: "HC-CB", "no HC-CB", "HC-no CB", "no HC-no CB"
 AGENT_NOISE = "" # "encoder", "cb_input", "cb_output"
 AGENT_HC_GRU_SIZE = 512
 AGENT_HC_CA1_SIZE = 512
-AGENT_CB_SIZES = [512, 256] # Need biological data to set these sizes
+AGENT_CB_SIZES = [512, 3] # Need biological data to set these sizes
 AGENT_OUTPUT_SIZE = 3
 AGENT_LR = 0.01
 AGENT_GAMMA = 0.99
 AGENT_EPSILON = 0.1
-AGENT_UPDATE_FREQ = 10
+TAU = 0.01
 
 # Other parameters
 EPISODES = 2000
@@ -59,7 +59,7 @@ object_cfg = {
         "lr": AGENT_LR,
         "gamma": AGENT_GAMMA,
         "epsilon": AGENT_EPSILON,
-        "target_update_freq": AGENT_UPDATE_FREQ
+        "tau": TAU
     },
     "buffer": {
         "size": BUFFER_SIZE,

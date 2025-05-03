@@ -57,6 +57,13 @@ class T_Maze(MiniGridEnv):
     def _gen_mission():
         return "Choose left or right based on starting information"
     
+    def _reward(self) -> float:
+        """
+        Compute the reward to be given upon success
+        EDITED: Return full reward
+        """
+
+        return 1 #- 0.9 * (self.step_count / self.max_steps)
 
     def _gen_grid(self, width, height):
         # Gen grid
@@ -150,6 +157,14 @@ class water_maze(MiniGridEnv):
     def _gen_mission():
         return "Find the hidden goal"
     
+    def _reward(self) -> float:
+        """
+        Compute the reward to be given upon success
+        EDITED: Return full reward
+        """
+
+        return 1 #- 0.9 * (self.step_count / self.max_steps)
+
     def _gen_grid(self, width, height):
         # Gen grid
         self.grid = Grid(width, height)
