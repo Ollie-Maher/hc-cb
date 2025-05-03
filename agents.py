@@ -99,8 +99,8 @@ class HC_CB_agent(nn.Module):
         self.lr = config["lr"]
         self.gamma = config["gamma"]
         self.epsilon = config["epsilon"]
-        self.target_update_freq = config["target_update_freq"]
         self.update_count = 0
+        self.tau = config["tau"] # Target network update rate
 
         # Noise params
         self.noise = config["noise"] # Noise location
