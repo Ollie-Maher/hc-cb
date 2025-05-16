@@ -38,7 +38,7 @@ EPISODES = 2000
 BUFFER_SIZE = 10000
 BATCH_SIZE = 32
 SEQUENCE_LENGTH = 10 # Number of steps to unroll the GRU for training
-SEED = 873 #665, 873, 323
+SEEDS = [665, 873, 323]
 
 
 # Config dictionaries
@@ -80,22 +80,26 @@ train_cfg = {
 
 
 def main():
-    # Set random seed
-    torch.manual_seed(SEED)
-    np.random.seed(SEED)
-    # Make objects
-    env, agent, target, buffer, storage = make_Objects(object_cfg)
-    print("Objects created successfully.")
 
-    # Train agent on environment
-    train(env, agent, target, buffer, storage, train_cfg)
-    print("Training completed.")
+    for i in range(len(SEEDS)):
+        seed = SEEDS[i]
+        print(f"Running replicate {i+1} with seed {seed}")
+        # Set random seed
+        torch.manual_seed(seed)
+        np.random.seed(seed)
+        # Make objects
+        env, agent, target, buffer, storage = make_Objects(object_cfg)
+        print("Objects created successfully.")
 
-    # Save agent and data
-    save(agent, storage, object_cfg, train_cfg)
-    print("Agent and data saved successfully.")
+        # Train agent on environment
+        train(env, agent, target, buffer, storage, train_cfg)
+        print("Training completed.")
 
-def save(agent, storage, object_cfg, train_cfg):
+        # Save agent and data
+        save(agent, storage, object_cfg, train_cfg, replicate=i+1)
+        print("Agent and data saved successfully.")
+
+def save(agent, storage, object_cfg, train_cfg, replicate=0):
     """
     Save the agent and data to the specified storage.
 
@@ -108,14 +112,18 @@ def save(agent, storage, object_cfg, train_cfg):
     # Save agent and data to storage
     print("Saving agent and data...")
 
+    # Set experiment id and path
+    path = f"{PATH}_{replicate}"
+    id = f"{EXPERIMENT_ID}_{replicate}"
+
     # Make directory
-    os.makedirs(PATH, exist_ok=True)
-    print(f"Directory {PATH} created.")
+    os.makedirs(path, exist_ok=True)
+    print(f"Directory {path} created.")
 
     # Set paths for saving
-    weights_path = f"{PATH}/agent_weights.pth"
-    config_path = f"{PATH}/config.json"
-    results_path = f"{PATH}/results.npy"
+    weights_path = f"{path}/agent_weights.pth"
+    config_path = f"{path}/config.json"
+    results_path = f"{path}/results.npy"
 
     # Save agent weights
     torch.save(agent.state_dict(), weights_path)
@@ -123,7 +131,7 @@ def save(agent, storage, object_cfg, train_cfg):
 
     # Save dictionary using torch
     config_dict = {
-        "experiment_id": EXPERIMENT_ID,
+        "experiment_id": id,
         "object_cfg": object_cfg,
         "train_cfg": train_cfg
     }

@@ -1,7 +1,6 @@
 # This file contains the training loop for the agent in the HCCB project.
 import torch
 import numpy as np
-from time import perf_counter
 
 def train(env, agent, target, buffer, storage, train_cfg):
     """
@@ -92,7 +91,6 @@ def run_Episode(env, max_steps, agent, target, buffer, storage, batch_size):
     storage.end_path()
     
     return reward, step + 1 # Reward, total steps
-
 
 def update_Agent(agent, target, buffer, batch_size):
     """

@@ -92,10 +92,12 @@ class storage():
         self.data[episode] = [total_reward, total_steps]
 
     def new_path(self):
-        print("Creating new path...")
+        pass
+        #print("Creating new path...")
 
     def end_path(self):
-        print("Ending path...")
+        pass
+        #print("Ending path...")
 
     def save_path(self, action, done):
         pass
