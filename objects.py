@@ -84,7 +84,7 @@ def get_agent(agent_cfg, image_shape, device) -> object:
 # Storage class for storing performance data
 class storage():
     def __init__(self, config):
-        self.path = f"{config["path"]}_{config["replicate"]}/results.npy"
+        self.path = f"{config['path']}_{config['replicate']}/results.npy"
         episodes = config["episodes"]
         self.data = np.empty((episodes, 2))
 
