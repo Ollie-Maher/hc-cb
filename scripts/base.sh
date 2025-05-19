@@ -6,9 +6,9 @@
 #SBATCH -p gpu_short
 #SBATCH --constraint "cascadelake"
 
-#SBATCH -D /well/costa/users/azu506/hccb_proj/hc-cb
+#SBATCH -D /well/costa/users/azu506/hccb_proj/hc-cb/
 
-#SBATCH --array 1-3
+#SBATCH --array=0-2
 #SBATCH --requeue
 
 # NB you must load the Python module from which your venvs were derived

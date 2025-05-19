@@ -32,7 +32,7 @@ args = parser.parse_args()
 # Parameters:
 # PATHS:
 EXPERIMENT_ID = args.experiment_id
-PATH = f"./HCCB/experiments/{EXPERIMENT_ID}"
+PATH = f"../experiments/{EXPERIMENT_ID}"
 
 # Environment parameters
 ENV_NAME = args.env_name
