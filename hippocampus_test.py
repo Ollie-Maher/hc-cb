@@ -1,4 +1,5 @@
 # This script is used to test the hippocampus agent.
+import argparse
 
 from training import train
 from objects import make_Objects
@@ -8,37 +9,70 @@ import numpy as np
 import json
 import os
 
+parser = argparse.ArgumentParser(prog = 'HPC-CB test',
+                                 description="Trains agent with defined parameters.")
+
+parser.add_argument('--experiment_id', type=str, default="test",
+                    help="Experiment ID for saving the results.")
+
+parser.add_argument('--env_name', type=str, default="t-maze",
+                    help="Environment to be trained on.")
+
+parser.add_argument('-hp', '--hippocampus', help='Use plastic HPC', action='store_true')
+parser.add_argument('-c', '--cerebellum', help='Use plastic CB', action='store_true')
+parser.add_argument('--encoder_noise', help='Add noise to encoder', action='store_true')
+parser.add_argument('--cb_input_noise', help='Add noise to CB input', action='store_true')
+parser.add_argument('--cb_output_noise', help='Add noise to CB output', action='store_true')
+
+parser.add_argument('--replicate', type=int, default=0,
+                    help="Replicate number for the experiment.")
+
+args = parser.parse_args()
 
 # Parameters:
 # PATHS:
-EXPERIMENT_ID = "test"
+EXPERIMENT_ID = args.experiment_id
 PATH = f"./HCCB/experiments/{EXPERIMENT_ID}"
 
 # Environment parameters
-ENV_NAME = "t-maze"
+ENV_NAME = args.env_name
 ENV_MAX_STEPS = 100
 ENV_TASK_SWITCH = 100
 
 
 # Agent parameters
 AGENT_CLASS = "hippocampus"
-AGENT_NAME = "HC-CB" # Options: "HC-CB", "no HC-CB", "HC-no CB", "no HC-no CB"
-AGENT_NOISE = "" # "encoder", "cb_input", "cb_output"
+
+# Set agent learning parameters
+hc_str = 'HC' if args.hippocampus else 'no HC'
+cb_str = 'CB' if args.cerebellum else 'no CB'
+AGENT_NAME = f"{hc_str}-{cb_str}" # Options: "HC-CB", "no HC-CB", "HC-no CB", "no HC-no CB"
+
+# Set noise parameters
+enc_noise = "encoder" if args.encoder_noise else ""
+cb_input_noise = "cb_input" if args.cb_input_noise else ""
+cb_output_noise = "cb_output" if args.cb_output_noise else ""
+AGENT_NOISE = f"{enc_noise}-{cb_input_noise}-{cb_output_noise}" # Options: "encoder", "cb_input", "cb_output"
+
+# Set agent sizes
 AGENT_HC_GRU_SIZE = 512
 AGENT_HC_CA1_SIZE = 512
 AGENT_CB_SIZES = [1024, 256] # Need biological data to set these sizes
 AGENT_OUTPUT_SIZE = 3
+
+# Set agent learning parameters
 AGENT_LR = 0.001
 AGENT_GAMMA = 0.99
 AGENT_EPSILON = 0.1
 AGENT_UPDATE_FREQ = 10
 
 # Other parameters
-EPISODES = 2000
+EPISODES = 2
 BUFFER_SIZE = 10000
 BATCH_SIZE = 32
 SEQUENCE_LENGTH = 10 # Number of steps to unroll the GRU for training
-SEED = 873 #665, 873, 323
+SEEDS = [873, 665, 323]
+SEED = SEEDS[args.replicate] # Set seed for reproducibility
 
 
 # Config dictionaries
