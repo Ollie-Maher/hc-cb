@@ -23,9 +23,12 @@ parser.add_argument('-c', '--cerebellum', help='Use plastic CB', action='store_t
 parser.add_argument('--encoder_noise', help='Add noise to encoder', action='store_true')
 parser.add_argument('--cb_input_noise', help='Add noise to CB input', action='store_true')
 parser.add_argument('--cb_output_noise', help='Add noise to CB output', action='store_true')
+parser.add_argument('-lr', '--learning_rate', type=float, default=0.0001, help='Set learning rate for the agent')
 
 parser.add_argument('--replicate', type=int,
-                    help="Replicate number for the experiment (0,1,2).")
+                    help="Replicate number for the experiment [0,1,2].")
+parser.add_argument('--episodes', type=int, default=2000,
+                    help="Set number of episodes.")
 
 args = parser.parse_args()
 
@@ -61,13 +64,13 @@ AGENT_CB_SIZES = [1024, 256] # Need biological data to set these sizes
 AGENT_OUTPUT_SIZE = 3
 
 # Set agent learning parameters
-AGENT_LR = 0.001
+AGENT_LR = args.learning_rate
 AGENT_GAMMA = 0.99
 AGENT_EPSILON = 0.1
 TAU = 0.01
 
 # Other parameters
-EPISODES = 2000
+EPISODES = args.episodes
 BUFFER_SIZE = 10000
 BATCH_SIZE = 32
 SEQUENCE_LENGTH = 10 # Number of steps to unroll the GRU for training
@@ -103,7 +106,7 @@ object_cfg = {
     },
     "storage": {
         "episodes": EPISODES,
-        "path": "./storage"
+        "path": PATH
     }
 }
 
@@ -118,10 +121,19 @@ def main():
 
     for i in range(len(SEEDS)):
         seed = SEEDS[i]
+        replicate=[665, 873, 323].index(seed)
+
+        # Make directory
+        os.makedirs(f"{PATH}_{replicate}", exist_ok=True)
+        print(f"Directory {PATH}_{replicate} created.")
+
         print(f"Running replicate {i+1} with seed {seed}")
         # Set random seed
         torch.manual_seed(seed)
         np.random.seed(seed)
+
+        object_cfg["agent"]["seed"] = seed
+        object_cfg["storage"]["replicate"] = replicate
         # Make objects
         env, agent, target, buffer, storage = make_Objects(object_cfg)
         print("Objects created successfully.")
@@ -131,7 +143,7 @@ def main():
         print("Training completed.")
 
         # Save agent and data
-        save(agent, storage, object_cfg, train_cfg, replicate=i+1)
+        save(agent, storage, object_cfg, train_cfg, replicate)
         print("Agent and data saved successfully.")
 
 def save(agent, storage, object_cfg, train_cfg, replicate=0):
@@ -147,14 +159,10 @@ def save(agent, storage, object_cfg, train_cfg, replicate=0):
     # Save agent and data to storage
     print("Saving agent and data...")
 
-    # Set experiment id and path
-    if len(SEEDS) == 1:
-        replicate = [665, 873, 323].index(SEEDS[0])
-        
+    # Set experiment id and path        
     path = f"{PATH}_{replicate}"
     id = f"{EXPERIMENT_ID}_{replicate}"
     
-
     # Make directory
     os.makedirs(path, exist_ok=True)
     print(f"Directory {path} created.")
@@ -177,10 +185,6 @@ def save(agent, storage, object_cfg, train_cfg, replicate=0):
     with open(config_path, 'w') as f:
         json.dump(config_dict, f)
     print(f"Dictionary saved to {config_path}")
-
-    # Save NumPy array
-    np.save(results_path, storage.data)
-    print(f"NumPy array saved to {results_path}")
 
 
 

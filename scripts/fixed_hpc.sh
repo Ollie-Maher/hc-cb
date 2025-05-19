@@ -19,4 +19,4 @@ module load PyTorch-bundle/2.1.2-foss-2023a-CUDA-12.1.1
 source "/well/costa/users/azu506/hccb_proj/hccb-proj-cascadelake/bin/activate"
 
 
-python ./hc-cb/hippocampus_test.py --experiment_id base_test -hp -c --replicate ${SLURM_ARRAY_TASK_ID}
+python ./hc-cb/hippocampus_test.py --experiment_id fixed_HPC -c --replicate ${SLURM_ARRAY_TASK_ID}
