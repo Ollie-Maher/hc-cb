@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH -J water long
+#SBATCH -J water_long
 
 #SBATCH -A costa.prj
 #SBATCH -p gpu_long
