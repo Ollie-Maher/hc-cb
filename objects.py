@@ -93,7 +93,6 @@ class storage():
     def store(self, episode, total_reward, total_steps):
         print("Storing data...")
         self.data[episode] = [total_reward, total_steps]
-        np.save(self.path, self.data)
 
     def new_path(self):
         pass
@@ -105,6 +104,9 @@ class storage():
 
     def save_path(self, action, done):
         pass
+
+    def save(self):
+        np.save(self.path, self.data)
 
 # Replay buffer class for storing experiences
 class replay_buffer():

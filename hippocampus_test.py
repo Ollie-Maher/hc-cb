@@ -186,6 +186,9 @@ def save(agent, storage, object_cfg, train_cfg, replicate=0):
         json.dump(config_dict, f)
     print(f"Dictionary saved to {config_path}")
 
+    # Save results
+    storage.save()
+
 
 
 if __name__ == "__main__":

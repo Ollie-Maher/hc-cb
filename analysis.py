@@ -5,7 +5,7 @@ import scipy.stats as stats
 rewards = np.empty((3, 2000), dtype=float)
 steps = np.empty((3, 2000), dtype=float)
 for i in range(3):
-    data_path = f"./experiments/fixed_CB_and_HPC_{i}/results.npy"
+    data_path = f"./experiments/base_test_start_weights_{i}/results.npy"
     data = np.load(data_path)
     rewards[i] = data[:, 0]
     steps[i] = data[:, 1]
