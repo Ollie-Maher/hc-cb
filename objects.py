@@ -90,8 +90,8 @@ class storage():
 
     def store(self, episode, total_reward, total_steps):
         print("Storing data...")
-        np.save(self.path, [total_reward, total_steps])
         self.data[episode] = [total_reward, total_steps]
+        np.save(self.path, self.data)
 
     def new_path(self):
         pass
