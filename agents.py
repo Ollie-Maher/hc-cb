@@ -259,9 +259,176 @@ class HC_CB_agent(nn.Module):
         self.optimizer.step()
         '''
 
+
+class HC_agent(nn.Module):
+    def __init__(self, config: dict, image_shape, device, is_target=False):
+        super().__init__()
+        self.config = config
+        self.is_target = is_target
+        # Type of agent
+        self.name = config["name"]
+
+        # Parameters
+        self.hc_gru_size = config["hc_gru_size"]
+        self.hc_ca1_size = config["hc_ca1_size"]
+        self.cb_sizes = config["cb_sizes"]
+        self.output_size = config["output_size"]
+        self.lr = config["lr"]
+        self.gamma = config["gamma"]
+        self.epsilon = config["epsilon"]
+        self.tau = config["tau"]
+        self.update_count = 0
+
+        # Noise params
+        self.noise = config["noise"] # Noise location
+        self.noise_params = {
+            "mean": 0,
+            "std": 1,
+        }
+
+        # Device
+        self.device = device
+
+        # Encoder
+        features_extractor = res_encoder(image_shape, device)
+        self.forward_conv = features_extractor.forward_conv
+        if self.noise >= "encoder":
+            self.encoder = nn.Sequential(
+                features_extractor,
+                noise_layer(mean=self.noise_params["mean"], std=self.noise_params["std"])
+            )
+        else:
+            self.encoder = features_extractor
+        self.encoder.to(self.device)
+        self.features_size = features_extractor.repr_dim # Output size
+
+        # Hippocampus using GRU
+        self.gru = nn.GRU(self.features_size, self.hc_gru_size, device=self.device)
+        self.ca1 = nn.Linear(self.hc_gru_size, self.hc_ca1_size, device=self.device)
+        self.action = nn.Linear(self.hc_ca1_size, self.output_size, device=self.device)
+
+        '''
+        # Cerebellum using linear layers w/ noise
+        if self.noise >= "cb_input":
+            self.cb = nn.Sequential(                
+                noise_layer(mean=self.noise_params["mean"], std=self.noise_params["std"]),
+                nn.Linear(self.hc_gru_size, self.cb_sizes[0], device=self.device),
+                nn.ReLU(),
+                nn.Linear(self.cb_sizes[0], self.output_size, device=self.device)
+            )
+        elif self.noise >= "cb_output":
+            self.cb = nn.Sequential(                
+                nn.Linear(self.hc_gru_size, self.cb_sizes[0], device=self.device),
+                nn.ReLU(),
+                nn.Linear(self.cb_sizes[0], self.output_size, device=self.device),
+                noise_layer(mean=self.noise_params["mean"], std=self.noise_params["std"])
+            )
+        else:
+            self.cb = nn.Sequential(
+                nn.Linear(self.hc_gru_size, self.cb_sizes[0], device=self.device),
+                nn.ReLU(),
+                nn.Linear(self.cb_sizes[0], self.output_size, device=self.device)
+            )
+        '''
+
+
+        # Set learning according to type of agent
+        if self.name >= "no HC" or is_target:
+            self.gru.requires_grad_ = False
+            self.ca1.requires_grad_ = False
+            self.action.requires_grad_ = False
+        
+        #if self.name >= "no CB" or is_target:
+            #self.cb.requires_grad_ = False
+
+        # Optimizer
+        self.optimizer = torch.optim.Adam(self.parameters(), lr=self.lr/10)
+        
+        # Loss function
+        self.criterion = nn.MSELoss()
+
+        self.reset() # Initialize the prediction and hidden state
+    
+    def reset(self):
+        # Reset the agent
+        self.prediction = torch.zeros(self.output_size, device=self.device)
+        self.gru_hidden = torch.zeros(1, self.hc_gru_size, device=self.device)
+
+    @torch.no_grad()
+    def forward(self, x):
+        # Run the input through the encoder
+        conv = self.forward_conv(x) # Shape (batch_size, features_size)
+        features = self.encoder(conv).squeeze(0)  # Remove batch dimension
+
+        # Store the initial prediction and hidden state
+        hidden_state = self.gru_hidden
+        init_prediction = self.prediction
+        
+        # Concatenate the conv and prediction
+        hc_input = features.unsqueeze(0) #torch.cat((features, init_prediction.squeeze()), dim=0).unsqueeze(0)
+        # No batch dimension
+        # hc_input must have shape (sequence length, features + predictions), sequence length = 1
         
 
+        # Pass the input through the GRU
+        out, self.gru_hidden = self.gru(hc_input, hidden_state)
+        out = F.relu(self.ca1(F.relu(out)))
+        out = self.action(out)
+        out = F.softmax(out, dim=1)
+
+        # Pass the hidden activity through the cerebellum
+        #self.prediction = self.cb(self.gru_hidden.detach())
+        return out, conv, hidden_state.detach(), self.gru_hidden.detach() # Return q values, gru (CA3) hidden state at t-1, and hidden state at t (used for CB input at t+1)
+    
+    def _reset_sequence(self):
+        # Reset the prediction and hidden state for sequence processing
+        self.sequence_prediction = torch.zeros(self.output_size, device=self.device)
+        self.sequence_gru_hidden = torch.zeros(1, self.hc_gru_size, device=self.device)
+    
+    def sequence_forward(self, x, hid_x):
+        self._reset_sequence() # Reset the prediction and hidden state 
+
+        # Run the input through the encoder
+        features_sequence = self.encoder(x.squeeze(1)) # Shape (sequence_length, features_size)
+
+        #cb_input = torch.cat((self.sequence_gru_hidden, hid_x), dim=0) # Shape (sequence_length, cb_sizes[0])
+        # Pass the sequence through cerebellum
+        #prediction_sequence = self.cb(cb_input.detach()) # Shape (sequence_length, output_size)
+
+        # Concatenate the conv and prediction
+        hc_input = features_sequence #torch.cat((features_sequence, prediction_sequence.detach()), dim=1) # Shape (sequence_length, features_size + output_size)
+    
+        # Pass the input through the GRU
+        out, self.sequence_gru_hidden = self.gru(hc_input, self.sequence_gru_hidden)
+        out = F.relu(self.ca1(F.relu(out)))
+        out = self.action(out)
+        out = F.softmax(out, dim=1)
+
+        return out, self.sequence_prediction # Return the output sequence and prediction sequence
+
+    def train(self, target_net, state_sequence, hidden_sequence, action_sequence, reward_sequence, next_state_sequence, done_sequence):
+        """
+        Train the agent with sample sequences from the replay buffer.
+        """
+        # Get the action Q-values for the current state sequence
+        q_values, predictions = self.sequence_forward(state_sequence, hidden_sequence[:-1])
         
+        action_qs = q_values.gather(1, action_sequence.unsqueeze(0)).squeeze() # Get the Q-values for the actions taken
+
+        # Get the next Q-values for the next state sequence
+        next_q_values, _ = target_net.sequence_forward(next_state_sequence, hidden_sequence[1:])
+        
+        # Get max Q-values for the next state sequence
+        next_max_values, _ = next_q_values.max(1)
+
+
+        # Compute target Q-values
+        target_q_values = reward_sequence + self.gamma * next_max_values * (1 - done_sequence)
+        
+        
+        return action_qs, target_q_values.float().squeeze() #, predictions.squeeze(), next_q_values.squeeze() # Return the action Q-values and target Q-values
+
+            
 def main():
     
     #test res_encoder

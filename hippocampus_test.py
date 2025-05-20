@@ -18,6 +18,8 @@ parser.add_argument('--experiment_id', type=str, default="test",
 parser.add_argument('--env_name', type=str, default="t-maze",
                     help="Environment to be trained on.")
 
+parser.add_argument('--agent_class', type=str, default="hippocampus-cerebellum",
+                    help="Agent class to be used."),
 parser.add_argument('-hp', '--hippocampus', help='Use plastic HPC', action='store_true')
 parser.add_argument('-c', '--cerebellum', help='Use plastic CB', action='store_true')
 parser.add_argument('--encoder_noise', help='Add noise to encoder', action='store_true')
@@ -44,7 +46,7 @@ ENV_TASK_SWITCH = 100
 
 
 # Agent parameters
-AGENT_CLASS = "hippocampus"
+AGENT_CLASS = args.agent_class
 
 # Set agent learning parameters
 hc_str = 'HC' if args.hippocampus else 'no HC'
@@ -168,9 +170,8 @@ def save(agent, storage, object_cfg, train_cfg, replicate=0):
     print(f"Directory {path} created.")
 
     # Set paths for saving
-    weights_path = f"{path}/agent_weights.pth"
+    weights_path = f"{path}/agent_weights_final.pth"
     config_path = f"{path}/config.json"
-    results_path = f"{path}/results.npy"
 
     # Save agent weights
     torch.save(agent.state_dict(), weights_path)

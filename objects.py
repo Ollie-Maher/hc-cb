@@ -2,7 +2,7 @@
 import torch.nn as nn
 import torch
 
-from agents import HC_CB_agent
+from agents import HC_CB_agent, HC_agent
 from environments import T_Maze, water_maze
 from collections import deque
 import numpy as np
@@ -73,9 +73,13 @@ def get_agent(agent_cfg, image_shape, device) -> object:
     Returns:
     agent: The agent object.
     """
-    if agent_cfg["class"] == "hippocampus":
+    if agent_cfg["class"] == "hippocampus-cerebellum":
         agent = HC_CB_agent(agent_cfg, image_shape, device=device)
         target = HC_CB_agent(agent_cfg, image_shape, device=device, is_target=True)
+        target.load_state_dict(agent.state_dict())
+    elif agent_cfg["class"] == "hippocampus":
+        agent = HC_agent(agent_cfg, image_shape, device=device)
+        target = HC_agent(agent_cfg, image_shape, device=device, is_target=True)
         target.load_state_dict(agent.state_dict())
     else:
         raise ValueError("Unknown agent type")
@@ -86,6 +90,7 @@ def get_agent(agent_cfg, image_shape, device) -> object:
 # Storage class for storing performance data
 class storage():
     def __init__(self, config):
+        self.root = f"{config['path']}_{config['replicate']}"
         self.path = f"{config['path']}_{config['replicate']}/results.npy"
         episodes = config["episodes"]
         self.data = np.empty((episodes, 2))

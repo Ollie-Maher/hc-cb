@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH -J base
+#SBATCH -J CB
 
 #SBATCH -A costa.prj
 #SBATCH -p gpu_short

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH -J HPC_CB
+#SBATCH -J water
 
 #SBATCH -A costa.prj
 #SBATCH -p gpu_short
@@ -19,4 +19,4 @@ module load PyTorch-bundle/2.1.2-foss-2023a-CUDA-12.1.1
 source "/well/costa/users/azu506/hccb_proj/hccb-proj-cascadelake/bin/activate"
 
 
-python ./hc-cb/hippocampus_test.py --experiment_id fixed_CB_and_HPC --replicate ${SLURM_ARRAY_TASK_ID}
+python ./hc-cb/hippocampus_test.py --experiment_id water_test -hp -c --replicate ${SLURM_ARRAY_TASK_ID} --env_name water-maze

@@ -26,9 +26,16 @@ def train(env, agent, target, buffer, storage, train_cfg):
     
     # Training loop
     for episode in range(episodes):
+        # Save data
+        if episode % 10 == 0:
+            print("Saving agent weights...")
+            torch.save(agent.state_dict(), f"{storage.root}/agent_weights_{episode}.pth")
+        if episode % 100 == 0:
+            print("Saving results...")
+            storage.save()
         # Run episode
         total_reward, total_steps = run_Episode(env, max_steps, agent, target, buffer, storage, batch_size)
-        # Save the agent and data
+        # Store data
         storage.store(episode, total_reward, total_steps)
         # Print progress
         print(f"Episode {episode + 1}/{episodes} completed.")
