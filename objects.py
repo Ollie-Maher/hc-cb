@@ -172,7 +172,7 @@ class replay_buffer():
                         state_sequence.append(torch.zeros_like(buffer_sequence[j][0]))
                         hidden_sequence.append(torch.zeros_like(buffer_sequence[j][1]))
                         action_sequence[k] = 0
-                        reward_sequence[k] = 0
+                        reward_sequence[k] = buffer_sequence[j][3]
                         next_state_sequence.append(torch.zeros_like(buffer_sequence[j][0]))
                         done_sequence[k] = 0
                     break

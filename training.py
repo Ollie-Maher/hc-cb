@@ -136,6 +136,9 @@ def update_Agent(agent, target, buffer, batch_size):
     # Backpropagation
     agent.optimizer.zero_grad()
     loss.backward()
+    for param in agent.parameters():
+            if param.grad is not None:
+                param.grad.data.clamp_(-1, 1)
     agent.optimizer.step()
 
     # Update the target network
