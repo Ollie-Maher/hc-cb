@@ -154,14 +154,14 @@ class HC_CB_agent(nn.Module):
 
 
         # Set learning according to type of agent
-        if self.name >= "-no HC" or is_target:
-            print(f"No HC for {"target" if is_target else "agent"}")
+        if ("no HC" in self.name) or is_target:
+            print(f"No HC for {'target' if is_target else 'agent'}")
             self.gru.requires_grad_ = False
             self.ca1.requires_grad_ = False
             self.action.requires_grad_ = False
         
-        if self.name >= "-no CB" or is_target:
-            print(f"No CB for {"target" if is_target else "agent"}")
+        if ("no CB" in self.name) or is_target:
+            print(f"No CB for {'target' if is_target else 'agent'}")
             self.cb.requires_grad_ = False
 
         # Optimizer

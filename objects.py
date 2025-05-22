@@ -169,11 +169,11 @@ class replay_buffer():
             for j in range(self.sequence_length): # Loop through the sequence length
                 if done == 1: # Leave rest of sequence as zeros; done from t-1
                     for k in range(j, self.sequence_length):
-                        state_sequence.append(torch.zeros_like(buffer_sequence[j][0]))
-                        hidden_sequence.append(torch.zeros_like(buffer_sequence[j][1]))
+                        state_sequence.append(buffer_sequence[j][0])
+                        hidden_sequence.append(buffer_sequence[j][1])
                         action_sequence[k] = buffer_sequence[j][2]
                         reward_sequence[k] = buffer_sequence[j][3]
-                        next_state_sequence.append(torch.zeros_like(buffer_sequence[j][0]))
+                        next_state_sequence.append(buffer_sequence[j][0])
                         done_sequence[k] = 1
                     break
 
