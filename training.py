@@ -1,7 +1,6 @@
 # This file contains the training loop for the agent in the HCCB project.
 import torch
 import numpy as np
-from time import perf_counter
 
 def train(env, agent, target, buffer, storage, train_cfg):
     """
@@ -27,9 +26,16 @@ def train(env, agent, target, buffer, storage, train_cfg):
     
     # Training loop
     for episode in range(episodes):
+        # Save data
+        if episode % 10 == 0:
+            print("Saving agent weights...")
+            torch.save(agent.state_dict(), f"{storage.root}/agent_weights_{episode}.pth")
+        if episode % 100 == 0:
+            print("Saving results...")
+            storage.save()
         # Run episode
         total_reward, total_steps = run_Episode(env, max_steps, agent, target, buffer, storage, batch_size)
-        # Save the agent and data
+        # Store data
         storage.store(episode, total_reward, total_steps)
         # Print progress
         print(f"Episode {episode + 1}/{episodes} completed.")
@@ -55,6 +61,7 @@ def run_Episode(env, max_steps, agent, target, buffer, storage, batch_size):
     state = env.reset()[0]["image"] # Get the image from the state IMPLEMENT WRAPPER TO FIX THIS
     state = torch.tensor(state, dtype=torch.float32, device=agent.device) # Add batch dimension and move to device
     agent.reset()
+    update = False
 
     # Initialise path storage
     storage.new_path()
@@ -77,8 +84,11 @@ def run_Episode(env, max_steps, agent, target, buffer, storage, batch_size):
         # Save path to storage
         storage.save_path(action, done)
 
-        # Update the agent
-        update_Agent(agent, target, buffer, batch_size)
+        # Update the agent 
+        if update:
+            update_Agent(agent, target, buffer, batch_size)
+
+        update = not update # Toggle update flag
 
         # End if episode is done
         if done:
@@ -88,7 +98,6 @@ def run_Episode(env, max_steps, agent, target, buffer, storage, batch_size):
     storage.end_path()
     
     return reward, step + 1 # Reward, total steps
-
 
 def update_Agent(agent, target, buffer, batch_size):
     """
@@ -138,13 +147,16 @@ def update_Agent(agent, target, buffer, batch_size):
     # Calculate the cerebellum loss
     cereb_loss = agent.criterion(stacked_predictions, stacked_next_q_vals)
     # Backpropagation
-    agent.cb_optimizer.zero_grad()
-    cereb_loss.backward()
-    agent.cb_optimizer.step()
+    agent.optimizer.zero_grad()
+    loss.backward()
+    for param in agent.parameters():
+            if param.grad is not None:
+                param.grad.data.clamp_(-1, 1)
+    agent.optimizer.step()
 
     # Update the target network
-    if agent.update_count % agent.target_update_freq == 0:
-        target.load_state_dict(agent.state_dict())
-        agent.update_count = 0
-    agent.update_count += 1
+    soft_update_params(agent, target, agent.tau)
     
+def soft_update_params(net, target_net, tau):
+    for param, target_param in zip(net.parameters(), target_net.parameters()):
+        target_param.data.copy_(tau * param.data + (1 - tau) * target_param.data)

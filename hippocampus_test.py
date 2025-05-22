@@ -18,21 +18,26 @@ parser.add_argument('--experiment_id', type=str, default="test",
 parser.add_argument('--env_name', type=str, default="t-maze",
                     help="Environment to be trained on.")
 
+parser.add_argument('--agent_class', type=str, default="hippocampus-cerebellum",
+                    help="Agent class to be used."),
 parser.add_argument('-hp', '--hippocampus', help='Use plastic HPC', action='store_true')
 parser.add_argument('-c', '--cerebellum', help='Use plastic CB', action='store_true')
 parser.add_argument('--encoder_noise', help='Add noise to encoder', action='store_true')
 parser.add_argument('--cb_input_noise', help='Add noise to CB input', action='store_true')
 parser.add_argument('--cb_output_noise', help='Add noise to CB output', action='store_true')
+parser.add_argument('-lr', '--learning_rate', type=float, default=0.0001, help='Set learning rate for the agent')
 
-parser.add_argument('--replicate', type=int, default=0,
-                    help="Replicate number for the experiment.")
+parser.add_argument('--replicate', type=int,
+                    help="Replicate number for the experiment [0,1,2].")
+parser.add_argument('--episodes', type=int, default=2000,
+                    help="Set number of episodes.")
 
 args = parser.parse_args()
 
 # Parameters:
 # PATHS:
 EXPERIMENT_ID = args.experiment_id
-PATH = f"./HCCB/experiments/{EXPERIMENT_ID}"
+PATH = f"../experiments/{EXPERIMENT_ID}"
 
 # Environment parameters
 ENV_NAME = args.env_name
@@ -41,7 +46,7 @@ ENV_TASK_SWITCH = 100
 
 
 # Agent parameters
-AGENT_CLASS = "hippocampus"
+AGENT_CLASS = args.agent_class
 
 # Set agent learning parameters
 hc_str = 'HC' if args.hippocampus else 'no HC'
@@ -61,18 +66,19 @@ AGENT_CB_SIZES = [1024, 256] # Need biological data to set these sizes
 AGENT_OUTPUT_SIZE = 3
 
 # Set agent learning parameters
-AGENT_LR = 0.001
+AGENT_LR = args.learning_rate
 AGENT_GAMMA = 0.99
 AGENT_EPSILON = 0.1
-AGENT_UPDATE_FREQ = 10
+TAU = 0.01
 
 # Other parameters
-EPISODES = 2
+EPISODES = args.episodes
 BUFFER_SIZE = 10000
 BATCH_SIZE = 32
 SEQUENCE_LENGTH = 10 # Number of steps to unroll the GRU for training
-SEEDS = [873, 665, 323]
-SEED = SEEDS[args.replicate] # Set seed for reproducibility
+SEEDS = [665, 873, 323]
+if args.replicate is not None:
+    SEEDS = [SEEDS[args.replicate]]
 
 
 # Config dictionaries
@@ -93,7 +99,7 @@ object_cfg = {
         "lr": AGENT_LR,
         "gamma": AGENT_GAMMA,
         "epsilon": AGENT_EPSILON,
-        "target_update_freq": AGENT_UPDATE_FREQ
+        "tau": TAU
     },
     "buffer": {
         "size": BUFFER_SIZE,
@@ -102,7 +108,7 @@ object_cfg = {
     },
     "storage": {
         "episodes": EPISODES,
-        "path": "./storage"
+        "path": PATH
     }
 }
 
@@ -114,22 +120,35 @@ train_cfg = {
 
 
 def main():
-    # Set random seed
-    torch.manual_seed(SEED)
-    np.random.seed(SEED)
-    # Make objects
-    env, agent, target, buffer, storage = make_Objects(object_cfg)
-    print("Objects created successfully.")
 
-    # Train agent on environment
-    train(env, agent, target, buffer, storage, train_cfg)
-    print("Training completed.")
+    for i in range(len(SEEDS)):
+        seed = SEEDS[i]
+        replicate=[665, 873, 323].index(seed)
 
-    # Save agent and data
-    save(agent, storage, object_cfg, train_cfg)
-    print("Agent and data saved successfully.")
+        # Make directory
+        os.makedirs(f"{PATH}_{replicate}", exist_ok=True)
+        print(f"Directory {PATH}_{replicate} created.")
 
-def save(agent, storage, object_cfg, train_cfg):
+        print(f"Running replicate {i+1} with seed {seed}")
+        # Set random seed
+        torch.manual_seed(seed)
+        np.random.seed(seed)
+
+        object_cfg["agent"]["seed"] = seed
+        object_cfg["storage"]["replicate"] = replicate
+        # Make objects
+        env, agent, target, buffer, storage = make_Objects(object_cfg)
+        print("Objects created successfully.")
+
+        # Train agent on environment
+        train(env, agent, target, buffer, storage, train_cfg)
+        print("Training completed.")
+
+        # Save agent and data
+        save(agent, storage, object_cfg, train_cfg, replicate)
+        print("Agent and data saved successfully.")
+
+def save(agent, storage, object_cfg, train_cfg, replicate=0):
     """
     Save the agent and data to the specified storage.
 
@@ -142,14 +161,17 @@ def save(agent, storage, object_cfg, train_cfg):
     # Save agent and data to storage
     print("Saving agent and data...")
 
+    # Set experiment id and path        
+    path = f"{PATH}_{replicate}"
+    id = f"{EXPERIMENT_ID}_{replicate}"
+    
     # Make directory
-    os.makedirs(PATH, exist_ok=True)
-    print(f"Directory {PATH} created.")
+    os.makedirs(path, exist_ok=True)
+    print(f"Directory {path} created.")
 
     # Set paths for saving
-    weights_path = f"{PATH}/agent_weights.pth"
-    config_path = f"{PATH}/config.json"
-    results_path = f"{PATH}/results.npy"
+    weights_path = f"{path}/agent_weights_final.pth"
+    config_path = f"{path}/config.json"
 
     # Save agent weights
     torch.save(agent.state_dict(), weights_path)
@@ -157,7 +179,7 @@ def save(agent, storage, object_cfg, train_cfg):
 
     # Save dictionary using torch
     config_dict = {
-        "experiment_id": EXPERIMENT_ID,
+        "experiment_id": id,
         "object_cfg": object_cfg,
         "train_cfg": train_cfg
     }
@@ -165,9 +187,8 @@ def save(agent, storage, object_cfg, train_cfg):
         json.dump(config_dict, f)
     print(f"Dictionary saved to {config_path}")
 
-    # Save NumPy array
-    np.save(results_path, storage.data)
-    print(f"NumPy array saved to {results_path}")
+    # Save results
+    storage.save()
 
 
 

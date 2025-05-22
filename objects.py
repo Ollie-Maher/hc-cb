@@ -2,11 +2,12 @@
 import torch.nn as nn
 import torch
 
-from agents import HC_CB_agent
-from environments import T_Maze
+from agents import HC_CB_agent, HC_agent
+from environments import T_Maze, water_maze
 from collections import deque
 from itertools import islice
 import numpy as np
+from itertools import islice
 
 import minigrid
 
@@ -54,7 +55,9 @@ def get_env(env_cfg) -> object:
     if env_cfg["name"] == "t-maze":
         env = T_Maze(max_steps=env_cfg["max_steps"], task_switch=env_cfg["task_switch"])
         env = minigrid.wrappers.RGBImgPartialObsWrapper(env)
-
+    elif env_cfg["name"] == "water-maze":
+        env = water_maze(max_steps=env_cfg["max_steps"], task_switch=env_cfg["task_switch"])
+        env = minigrid.wrappers.RGBImgPartialObsWrapper(env)
     else:
         raise ValueError("Unknown environment type")
 
@@ -71,9 +74,13 @@ def get_agent(agent_cfg, image_shape, device) -> object:
     Returns:
     agent: The agent object.
     """
-    if agent_cfg["class"] == "hippocampus":
+    if agent_cfg["class"] == "hippocampus-cerebellum":
         agent = HC_CB_agent(agent_cfg, image_shape, device=device)
         target = HC_CB_agent(agent_cfg, image_shape, device=device, is_target=True)
+        target.load_state_dict(agent.state_dict())
+    elif agent_cfg["class"] == "hippocampus":
+        agent = HC_agent(agent_cfg, image_shape, device=device)
+        target = HC_agent(agent_cfg, image_shape, device=device, is_target=True)
         target.load_state_dict(agent.state_dict())
     else:
         raise ValueError("Unknown agent type")
@@ -84,6 +91,8 @@ def get_agent(agent_cfg, image_shape, device) -> object:
 # Storage class for storing performance data
 class storage():
     def __init__(self, config):
+        self.root = f"{config['path']}_{config['replicate']}"
+        self.path = f"{config['path']}_{config['replicate']}/results.npy"
         episodes = config["episodes"]
         self.data = np.empty((episodes, 2))
 
@@ -92,13 +101,18 @@ class storage():
         self.data[episode] = [total_reward, total_steps]
 
     def new_path(self):
-        print("Creating new path...")
+        pass
+        #print("Creating new path...")
 
     def end_path(self):
-        print("Ending path...")
+        pass
+        #print("Ending path...")
 
     def save_path(self, action, done):
         pass
+
+    def save(self):
+        np.save(self.path, self.data)
 
 # Replay buffer class for storing experiences
 class replay_buffer():
@@ -156,12 +170,12 @@ class replay_buffer():
             for j in range(self.sequence_length): # Loop through the sequence length
                 if done == 1: # Leave rest of sequence as zeros; done from t-1
                     for k in range(j, self.sequence_length):
-                        state_sequence.append(torch.zeros_like(buffer_sequence[j][0]))
-                        hidden_sequence.append(torch.zeros_like(buffer_sequence[j][1]))
-                        action_sequence[k] = 0
-                        reward_sequence[k] = 0
-                        next_state_sequence.append(torch.zeros_like(buffer_sequence[j][0]))
-                        done_sequence[k] = 0
+                        state_sequence.append(buffer_sequence[j][0])
+                        hidden_sequence.append(buffer_sequence[j][1])
+                        action_sequence[k] = buffer_sequence[j][2]
+                        reward_sequence[k] = buffer_sequence[j][3]
+                        next_state_sequence.append(buffer_sequence[j][0])
+                        done_sequence[k] = 1
                     break
 
                 done = buffer_sequence[j][5]
