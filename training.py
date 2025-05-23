@@ -27,10 +27,10 @@ def train(env, agent, target, buffer, storage, train_cfg):
     # Training loop
     for episode in range(episodes):
         # Save data
-        if episode % 10 == 0:
+        if episode % 1000 == 0:
             print("Saving agent weights...")
             torch.save(agent.state_dict(), f"{storage.root}/agent_weights_{episode}.pth")
-        if episode % 100 == 0:
+        if episode % 1000 == 0:
             print("Saving results...")
             storage.save()
         # Run episode
