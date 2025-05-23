@@ -115,30 +115,37 @@ def update_Agent(agent, target, buffer, batch_size):
     # Sample a batch of experiences from the buffer
     if len(buffer) < batch_size or len(buffer) < buffer.sequence_length:
         return  # Not enough samples to update
-    if not buffer.reward_check():
-        return # No rewards in the buffer
     batch = buffer.sample()
     
 
     batch_action_vals = []
     batch_target_vals = []
+    batch_predictions = []
+    batch_next_q_vals = []
     # Update the agent using the batch
     for sequences in batch:
-        action_vals, target_vals = agent.train(target, *sequences)
+        action_vals, target_vals, predictions, next_q_vals = agent.train(target, *sequences)
         batch_action_vals.append(action_vals)
         batch_target_vals.append(target_vals)
+        batch_predictions.append(predictions)
+        batch_next_q_vals.append(next_q_vals)
     stacked_action_vals = torch.stack(batch_action_vals)
     stacked_target_vals = torch.stack(batch_target_vals)
+    stacked_predictions = torch.stack(batch_predictions)
+    stacked_next_q_vals = torch.stack(batch_next_q_vals)
 
     
-    # Calculate the loss
-    loss = agent.criterion(stacked_action_vals, stacked_target_vals)
+    # Calculate the hc loss
+    hc_loss = agent.criterion(stacked_action_vals, stacked_target_vals)
+    # Calculate the cerebellum loss
+    cereb_loss = agent.criterion(stacked_predictions, stacked_next_q_vals)
+    loss = hc_loss + cereb_loss
     # Backpropagation
     agent.optimizer.zero_grad()
     loss.backward()
     for param in agent.parameters():
-            if param.grad is not None:
-                param.grad.data.clamp_(-1, 1)
+        if param.grad is not None:
+            param.grad.data.clamp_(-1, 1)
     agent.optimizer.step()
 
     # Update the target network

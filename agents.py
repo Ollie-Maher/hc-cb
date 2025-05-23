@@ -126,7 +126,7 @@ class HC_CB_agent(nn.Module):
         self.features_size = features_extractor.repr_dim # Output size
 
         # Hippocampus using GRU
-        self.gru = nn.GRU(self.features_size + self.cb_sizes[1], self.hc_gru_size, device=self.device)
+        self.gru = nn.GRU(self.features_size + self.output_size, self.hc_gru_size, device=self.device)
         self.ca1 = nn.Linear(self.hc_gru_size, self.hc_ca1_size, device=self.device)
         self.action = nn.Linear(self.hc_ca1_size, self.output_size, device=self.device)
 
@@ -136,20 +136,20 @@ class HC_CB_agent(nn.Module):
                 noise_layer(mean=self.noise_params["mean"], std=self.noise_params["std"]),
                 nn.Linear(self.hc_gru_size, self.cb_sizes[0], device=self.device),
                 nn.ReLU(),
-                nn.Linear(self.cb_sizes[0], self.cb_sizes[1], device=self.device)
+                nn.Linear(self.cb_sizes[0], self.output_size, device=self.device)
             )
         elif self.noise >= "cb_output":
             self.cb = nn.Sequential(                
                 nn.Linear(self.hc_gru_size, self.cb_sizes[0], device=self.device),
                 nn.ReLU(),
-                nn.Linear(self.cb_sizes[0], self.cb_sizes[1], device=self.device),
+                nn.Linear(self.cb_sizes[0], self.output_size, device=self.device),
                 noise_layer(mean=self.noise_params["mean"], std=self.noise_params["std"])
             )
         else:
             self.cb = nn.Sequential(
                 nn.Linear(self.hc_gru_size, self.cb_sizes[0], device=self.device),
                 nn.ReLU(),
-                nn.Linear(self.cb_sizes[0], self.cb_sizes[1], device=self.device)
+                nn.Linear(self.cb_sizes[0], self.output_size, device=self.device)
             )
 
 
@@ -174,7 +174,7 @@ class HC_CB_agent(nn.Module):
     
     def reset(self):
         # Reset the agent
-        self.prediction = torch.zeros(self.cb_sizes[1], device=self.device)
+        self.prediction = torch.zeros(self.output_size, device=self.device)
         self.gru_hidden = torch.zeros(1, self.hc_gru_size, device=self.device)
 
     def forward(self, x):
@@ -204,7 +204,7 @@ class HC_CB_agent(nn.Module):
     
     def _reset_sequence(self):
         # Reset the prediction and hidden state for sequence processing
-        self.sequence_prediction = torch.zeros(self.cb_sizes[1], device=self.device)
+        self.sequence_prediction = torch.zeros(self.output_size, device=self.device)
         self.sequence_gru_hidden = torch.zeros(1, self.hc_gru_size, device=self.device)
     
     def sequence_forward(self, x, hid_x):
@@ -213,12 +213,12 @@ class HC_CB_agent(nn.Module):
         # Run the input through the encoder
         features_sequence = self.encoder(x.squeeze(1)) # Shape (sequence_length, features_size)
 
-        cb_input = torch.cat((self.sequence_gru_hidden, hid_x), dim=0) # Shape (sequence_length, cb_sizes[0])
+        cb_input = torch.cat((self.sequence_gru_hidden.clone().detach(), hid_x), dim=0) # Shape (sequence_length, cb_sizes[0])
         # Pass the sequence through cerebellum
-        prediction_sequence = self.cb(cb_input) # Shape (sequence_length, cb_sizes[1])
+        prediction_sequence = self.cb(cb_input) # Shape (sequence_length, output_size)
 
         # Concatenate the conv and prediction
-        hc_input = torch.cat((features_sequence, prediction_sequence), dim=1) # Shape (sequence_length, features_size + cb_sizes[1])
+        hc_input = torch.cat((features_sequence, prediction_sequence.clone().detach()), dim=1) # Shape (sequence_length, features_size + output_size)
     
         # Pass the input through the GRU
         out, self.sequence_gru_hidden = self.gru(hc_input, self.sequence_gru_hidden)
@@ -248,18 +248,7 @@ class HC_CB_agent(nn.Module):
         target_q_values = reward_sequence + self.gamma * next_max_values * (1 - done_sequence)
         
         
-        return action_qs, target_q_values.float().squeeze() # Return the action Q-values and target Q-values
-        '''
-        # Compute loss (using MSE)
-        # target_q_values needs to be explicitly cast to float
-        # because it is cast as double during calculation
-        loss = self.criterion(action_qs, target_q_values.float().squeeze())
-       
-        # Backpropagation
-        self.optimizer.zero_grad()
-        loss.backward()
-        self.optimizer.step()
-        '''
+        return action_qs, target_q_values.float().squeeze(), predictions.squeeze(), next_q_values.squeeze() # Return the action Q-values and target Q-values
 
 
 class HC_agent(nn.Module):
