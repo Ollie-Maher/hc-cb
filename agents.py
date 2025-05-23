@@ -215,12 +215,12 @@ class HC_CB_agent(nn.Module):
         # Run the input through the encoder
         features_sequence = self.encoder(x.squeeze(1)) # Shape (sequence_length, features_size)
 
-        cb_input = torch.cat((self.sequence_gru_hidden, hid_x), dim=0) # Shape (sequence_length, cb_sizes[0])
+        cb_input = torch.cat((self.sequence_gru_hidden.clone().detach(), hid_x), dim=0) # Shape (sequence_length, cb_sizes[0])
         # Pass the sequence through cerebellum
-        prediction_sequence = self.cb(cb_input.detach()) # Shape (sequence_length, output_size)
+        prediction_sequence = self.cb(cb_input) # Shape (sequence_length, output_size)
 
         # Concatenate the conv and prediction
-        hc_input = torch.cat((features_sequence, prediction_sequence.detach()), dim=1) # Shape (sequence_length, features_size + output_size)
+        hc_input = torch.cat((features_sequence, prediction_sequence.clone().detach()), dim=1) # Shape (sequence_length, features_size + output_size)
     
         # Pass the input through the GRU
         out, self.sequence_gru_hidden = self.gru(hc_input, self.sequence_gru_hidden)
@@ -250,18 +250,7 @@ class HC_CB_agent(nn.Module):
         target_q_values = reward_sequence + self.gamma * next_max_values * (1 - done_sequence)
         
         
-        return action_qs, target_q_values.float().squeeze() # Return the action Q-values and target Q-values
-        '''
-        # Compute loss (using MSE)
-        # target_q_values needs to be explicitly cast to float
-        # because it is cast as double during calculation
-        loss = self.criterion(action_qs, target_q_values.float().squeeze())
-       
-        # Backpropagation
-        self.optimizer.zero_grad()
-        loss.backward()
-        self.optimizer.step()
-        '''
+        return action_qs, target_q_values.float().squeeze(), predictions.squeeze(), next_q_values.squeeze() # Return the action Q-values and target Q-values
 
 
 class HC_agent(nn.Module):
@@ -434,7 +423,7 @@ class HC_agent(nn.Module):
 
             
 def main():
-    
+    '''
     #test res_encoder
     obs_shape = (56, 56, 3) # Example observation shape (H, W, C)
     encoder = res_encoder(obs_shape, torch.device("cuda"))
@@ -466,7 +455,7 @@ def main():
 
     # Agent parameters
     AGENT_CLASS = "hippocampus"
-    AGENT_NAME = "HC-CB" # Options: "HC-CB", "no HC-CB", "HC-no CB", "no HC-no CB"
+    AGENT_NAME = "no HC-CB" # Options: "HC-CB", "no HC-CB", "HC-no CB", "no HC-no CB"
     AGENT_NOISE = "" # "encoder", "cb_input", "cb_output"
     AGENT_HC_GRU_SIZE = 512
     AGENT_HC_CA1_SIZE = 512
@@ -475,7 +464,7 @@ def main():
     AGENT_LR = 0.001
     AGENT_GAMMA = 0.99
     AGENT_EPSILON = 0.1
-    AGENT_UPDATE_FREQ = 10
+    TAU = 0.01
 
     # Other parameters
     EPISODES = 1
@@ -501,7 +490,7 @@ def main():
             "lr": AGENT_LR,
             "gamma": AGENT_GAMMA,
             "epsilon": AGENT_EPSILON,
-            "target_update_freq": AGENT_UPDATE_FREQ
+            "tau": TAU
         },
         "buffer": {
             "size": BUFFER_SIZE,
@@ -522,19 +511,57 @@ def main():
 
     obs_shape = (56, 56, 3) # Example observation shape (H, W, C)
     
-    test_agent = HC_CB_agent(object_cfg["agent"], obs_shape, torch.device("cuda"))
-    print("Agent created successfully.")
-    obs = np.random.rand(56, 56, 3) # Example observation
-    out = test_agent(obs)
-    print("Output shape:", out[0].shape) # Should be (1, 3)
-    seq_obs = np.random.rand(10, 56, 56, 3) # Example observation sequence
-    t1 = perf_counter()
-    for i in range(1000):
-        out_seq = test_agent.batch_forward(seq_obs)    
-    t2 = perf_counter()
-    print(f"Agent time: {t2 - t1:.4f} seconds")
-    print("Output sequence shape:", out_seq[0].shape) # Should be (10, 3)
-    '''   
+    agent = HC_CB_agent(object_cfg["agent"], obs_shape, torch.device("cpu"))
+    target = HC_CB_agent(object_cfg["agent"], obs_shape, torch.device("cpu"), is_target=True)
+    
+    conv = agent.forward_conv(torch.rand(10, 56, 56, 3).to(torch.device("cpu")))
+
+    state_sequence = torch.rand_like(conv)
+    next_state_sequence = torch.rand_like(conv)
+    hidden_sequence = torch.rand(10, agent.hc_gru_size)
+
+    action_sequence = torch.zeros(10, dtype=int)
+    reward_sequence = torch.zeros(10, dtype=float)
+    done_sequence = torch.zeros(10, dtype=int)
+
+    
+    sequences = state_sequence, hidden_sequence, action_sequence, reward_sequence, next_state_sequence, done_sequence
+
+    action_vals, target_vals, predictions, next_q_vals = agent.train(target, *sequences)
+
+    
+    # Calculate the hc loss
+    hc_loss = agent.criterion(action_vals, target_vals)
+    # Calculate the cerebellum loss
+    cereb_loss = agent.criterion(predictions, next_q_vals)
+    loss = hc_loss + cereb_loss
+    # Backpropagation
+    agent.hc_optimizer.zero_grad()
+    loss.backward()  # Retain graph for the cerebellum loss
+    for param in agent.cb.parameters():
+        print("CB grad:", param.grad)
+    for param in agent.parameters():
+            if param.grad is not None:
+                param.grad.data.clamp_(-1, 1)
+    agent.hc_optimizer.step()
+    
+    '''
+    layers = [agent.ca1, agent.action]
+    # Backpropagation
+    agent.cb_optimizer.zero_grad()
+    cereb_loss.backward()
+    for key in agent.gru.named_parameters():
+        print("GRU grad:", key[0], key[1].grad)
+    for i in range(len(layers)):
+        print("Layer", i, "grad:", layers[i].weight.grad)
+    for param in agent.cb.parameters():
+        print("CB grad:", param.grad)
+    for param in agent.cb.parameters():
+            if param.grad is not None:
+                param.grad.data.clamp_(-1, 1)
+    agent.cb_optimizer.step()
+    '''
+
 
 
 if __name__ == "__main__":
