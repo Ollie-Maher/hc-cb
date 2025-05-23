@@ -115,7 +115,7 @@ class HC_CB_agent(nn.Module):
         # Encoder
         features_extractor = res_encoder(image_shape, device)
         self.forward_conv = features_extractor.forward_conv
-        if self.noise >= "encoder":
+        if "encoder" in self.noise:
             self.encoder = nn.Sequential(
                 features_extractor,
                 noise_layer(mean=self.noise_params["mean"], std=self.noise_params["std"])
@@ -131,14 +131,22 @@ class HC_CB_agent(nn.Module):
         self.action = nn.Linear(self.hc_ca1_size, self.output_size, device=self.device)
 
         # Cerebellum using linear layers w/ noise
-        if self.noise >= "cb_input":
+        if "cb_input" in self.noise and "cb_output" in self.noise:
+            self.cb = nn.Sequential(                
+                noise_layer(mean=self.noise_params["mean"], std=self.noise_params["std"]),
+                nn.Linear(self.hc_gru_size, self.cb_sizes[0], device=self.device),
+                nn.ReLU(),
+                nn.Linear(self.cb_sizes[0], self.output_size, device=self.device),
+                noise_layer(mean=self.noise_params["mean"], std=self.noise_params["std"])
+            )
+        elif "cb_input" in self.noise:
             self.cb = nn.Sequential(                
                 noise_layer(mean=self.noise_params["mean"], std=self.noise_params["std"]),
                 nn.Linear(self.hc_gru_size, self.cb_sizes[0], device=self.device),
                 nn.ReLU(),
                 nn.Linear(self.cb_sizes[0], self.output_size, device=self.device)
             )
-        elif self.noise >= "cb_output":
+        elif "cb_output" in self.noise:
             self.cb = nn.Sequential(                
                 nn.Linear(self.hc_gru_size, self.cb_sizes[0], device=self.device),
                 nn.ReLU(),
@@ -152,17 +160,22 @@ class HC_CB_agent(nn.Module):
                 nn.Linear(self.cb_sizes[0], self.output_size, device=self.device)
             )
 
+        if is_target:
+            self.encoder.requires_grad_(False)
 
         # Set learning according to type of agent
         if ("no HC" in self.name) or is_target:
             print(f"No HC for {'target' if is_target else 'agent'}")
-            self.gru.requires_grad_ = False
-            self.ca1.requires_grad_ = False
-            self.action.requires_grad_ = False
+            self.gru.requires_grad_(requires_grad = False)
+            self.ca1.requires_grad_(requires_grad = False)
+            self.action.requires_grad_(requires_grad = False)
         
         if ("no CB" in self.name) or is_target:
             print(f"No CB for {'target' if is_target else 'agent'}")
-            self.cb.requires_grad_ = False
+            self.cb.requires_grad_(requires_grad = False)
+
+        for name, param in self.named_parameters():
+            print(f"Parameter {name}: {param.requires_grad}")
 
         # Optimizer
         self.optimizer = torch.optim.Adam(self.parameters(), lr=self.lr)
@@ -321,16 +334,18 @@ class HC_agent(nn.Module):
                 nn.Linear(self.cb_sizes[0], self.output_size, device=self.device)
             )
         '''
-
+        if is_target:
+            self.encoder.requires_grad_(False)
 
         # Set learning according to type of agent
-        if self.name >= "no HC" or is_target:
-            self.gru.requires_grad_ = False
-            self.ca1.requires_grad_ = False
-            self.action.requires_grad_ = False
-        
-        #if self.name >= "no CB" or is_target:
-            #self.cb.requires_grad_ = False
+        if ("no HC" in self.name) or is_target:
+            print(f"No HC for {'target' if is_target else 'agent'}")
+            self.gru.requires_grad_(requires_grad = False)
+            self.ca1.requires_grad_(requires_grad = False)
+            self.action.requires_grad_(requires_grad = False)
+    
+        for name, param in self.named_parameters():
+            print(f"Parameter {name}: {param.requires_grad}")
 
         # Optimizer
         self.optimizer = torch.optim.Adam(self.parameters(), lr=self.lr/10)
