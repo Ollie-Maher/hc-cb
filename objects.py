@@ -57,7 +57,7 @@ def get_env(env_cfg) -> object:
     elif env_cfg["name"] == "water-maze":
         env = water_maze(max_steps=env_cfg["max_steps"], task_switch=env_cfg["task_switch"])
         env = minigrid.wrappers.RGBImgPartialObsWrapper(env)
-    elif env_cfg["name"] == "minigrid-empty":
+    elif env_cfg["name"] == "empty":
         env = minigrid.make("MiniGrid-Empty-5x5-v0")
         env = minigrid.wrappers.RGBImgPartialObsWrapper(env)
     elif env_cfg["name"] == "easy-t":
