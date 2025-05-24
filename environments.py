@@ -95,11 +95,11 @@ class T_Maze(MiniGridEnv):
         '''
         # Goal + terminal
         if self.goal_up:
-            self.grid.set(3,1,Goal())
-            self.grid.set(3,3,Fake_Goal())
+            self.grid.set(3,1,Goal(self.floor_colours[1]))
+            self.grid.set(3,3,Fake_Goal(self.floor_colours[0]))
         else:
-            self.grid.set(3,3,Goal())
-            self.grid.set(3,1,Fake_Goal())
+            self.grid.set(3,3,Goal(self.floor_colours[0]))
+            self.grid.set(3,1,Fake_Goal(self.floor_colours[1]))
         '''
         +GOAL:
         XXXXX
@@ -328,8 +328,18 @@ class water_maze(MiniGridEnv):
 
     
 class Fake_Goal(WorldObj):
-    def __init__(self):
-        super().__init__("lava", 'green')
+    def __init__(self, color='green'):
+        super().__init__("lava", color)
+
+    def can_overlap(self):
+        return True
+
+    def render(self, img):
+        fill_coords(img, point_in_rect(0, 1, 0, 1), COLORS[self.color]) # Same as goal
+
+class Goal(WorldObj):
+    def __init__(self, color='green'):
+        super().__init__("goal", color)
 
     def can_overlap(self):
         return True
@@ -355,7 +365,7 @@ class Colour_Wall(WorldObj):
         fill_coords(img, point_in_rect(0, 1, 0, 1), COLORS[self.color]) # Same as goal
 
 def main():
-    env = water_maze(render_mode="human")
+    env = T_Maze(render_mode="human")
     
     env = minigrid.wrappers.RGBImgPartialObsWrapper(env)
     state = env.reset(seed=42)
