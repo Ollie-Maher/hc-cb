@@ -106,7 +106,7 @@ class HC_CB_agent(nn.Module):
         self.noise = config["noise"] # Noise location
         self.noise_params = {
             "mean": 0,
-            "std": 1,
+            "std": 0.2,
         }
 
         # Device
@@ -126,7 +126,7 @@ class HC_CB_agent(nn.Module):
         self.features_size = features_extractor.repr_dim # Output size
 
         # Hippocampus using GRU
-        self.gru = nn.GRU(self.features_size + self.output_size, self.hc_gru_size, device=self.device)
+        self.gru = nn.GRU(self.features_size + self.output_size*2, self.hc_gru_size, device=self.device)
         self.ca1 = nn.Linear(self.hc_gru_size, self.hc_ca1_size, device=self.device)
         self.action = nn.Linear(self.hc_ca1_size, self.output_size, device=self.device)
 
@@ -192,7 +192,7 @@ class HC_CB_agent(nn.Module):
         self.prediction = torch.zeros(self.output_size, device=self.device)
         self.gru_hidden = torch.zeros(1, self.hc_gru_size, device=self.device)
 
-    def forward(self, x):
+    def forward(self, x, action):
         # Run the input through the encoder
         conv = self.forward_conv(x) # Shape (batch_size, features_size)
         features = self.encoder(conv).squeeze(0)  # Remove batch dimension
@@ -202,7 +202,7 @@ class HC_CB_agent(nn.Module):
         init_prediction = self.prediction
         
         # Concatenate the conv and prediction
-        hc_input = torch.cat((features, init_prediction.squeeze()), dim=0).unsqueeze(0)
+        hc_input = torch.cat((features, init_prediction.squeeze(), action), dim=0).unsqueeze(0)
         # No batch dimension
         # hc_input must have shape (sequence length, features + predictions), sequence length = 1
         
@@ -219,10 +219,10 @@ class HC_CB_agent(nn.Module):
     
     def _reset_sequence(self):
         # Reset the prediction and hidden state for sequence processing
-        self.sequence_prediction = torch.zeros(self.output_size, device=self.device)
-        self.sequence_gru_hidden = torch.zeros(1, self.hc_gru_size, device=self.device)
-    
-    def sequence_forward(self, x, hid_x):
+        self.sequence_prediction = torch.randn(self.output_size, device=self.device)
+        self.sequence_gru_hidden = torch.randn(1, self.hc_gru_size, device=self.device)
+        
+    def sequence_forward(self, x, hid_x, actions):
         self._reset_sequence() # Reset the prediction and hidden state 
 
         # Run the input through the encoder
@@ -232,8 +232,9 @@ class HC_CB_agent(nn.Module):
         # Pass the sequence through cerebellum
         prediction_sequence = self.cb(cb_input) # Shape (sequence_length, output_size)
 
+        actions = torch.cat((torch.tensor([[0,0,0]], device=self.device), actions), dim=0) # Duplicate the action sequence for concatenation
         # Concatenate the conv and prediction
-        hc_input = torch.cat((features_sequence, prediction_sequence.clone().detach()), dim=1) # Shape (sequence_length, features_size + output_size)
+        hc_input = torch.cat((features_sequence, prediction_sequence.clone().detach(), actions), dim=1) # Shape (sequence_length, features_size + output_size)
     
         # Pass the input through the GRU
         out, self.sequence_gru_hidden = self.gru(hc_input, self.sequence_gru_hidden)
@@ -247,13 +248,16 @@ class HC_CB_agent(nn.Module):
         """
         Train the agent with sample sequences from the replay buffer.
         """
+        
+        actions_in = F.one_hot(action_sequence, num_classes=self.output_size).int() # Convert action sequence to one-hot encoding
+
         # Get the action Q-values for the current state sequence
-        q_values, predictions = self.sequence_forward(state_sequence, hidden_sequence[:-1])
+        q_values, predictions = self.sequence_forward(state_sequence, hidden_sequence[:-1], actions_in[:-1])
         
         action_qs = q_values.gather(1, action_sequence.unsqueeze(0)).squeeze() # Get the Q-values for the actions taken
 
         # Get the next Q-values for the next state sequence
-        next_q_values, _ = target_net.sequence_forward(next_state_sequence, hidden_sequence[1:])
+        next_q_values, _ = target_net.sequence_forward(next_state_sequence, hidden_sequence[1:], actions_in[1:])
         
         # Get max Q-values for the next state sequence
         next_max_values, _ = next_q_values.max(1)

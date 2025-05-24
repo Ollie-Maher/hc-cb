@@ -31,6 +31,10 @@ parser.add_argument('--replicate', type=int,
                     help="Replicate number for the experiment [0,1,2].")
 parser.add_argument('--episodes', type=int, default=2000,
                     help="Set number of episodes.")
+parser.add_argument('--task_switch', type=int, default=100,
+                    help="Set number of episodes before task switch.")
+parser.add_argument('--max_steps', type=int, default=100,
+                    help="Set maximum number of steps per episode.")
 
 args = parser.parse_args()
 
@@ -41,8 +45,8 @@ PATH = f"../experiments/{EXPERIMENT_ID}"
 
 # Environment parameters
 ENV_NAME = args.env_name
-ENV_MAX_STEPS = 100
-ENV_TASK_SWITCH = 100
+ENV_MAX_STEPS = args.max_steps
+ENV_TASK_SWITCH = args.task_switch
 
 
 # Agent parameters

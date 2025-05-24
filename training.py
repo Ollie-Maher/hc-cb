@@ -60,6 +60,7 @@ def run_Episode(env, max_steps, agent, target, buffer, storage, batch_size):
     # Reset environment and agent
     state = env.reset()[0]["image"] # Get the image from the state IMPLEMENT WRAPPER TO FIX THIS
     state = torch.tensor(state, dtype=torch.float32, device=agent.device) # Add batch dimension and move to device
+    action_in = torch.tensor([0,0,0], dtype=torch.int, device=agent.device) # Initialize action tensor
     agent.reset()
     update = False
 
@@ -69,12 +70,16 @@ def run_Episode(env, max_steps, agent, target, buffer, storage, batch_size):
     # Run steps in the episode
     for step in range(max_steps):
         # Get action from agent
-        q_values, conv, hidden_state, next_cb_input = agent(state)
+        q_values, conv, hidden_state, next_cb_input = agent(state, action_in)
         action = int((torch.argmax(q_values).item() if np.random.rand() > agent.epsilon else np.random.randint(0, q_values.shape[1])))
         # Take action in environment
         next_state, reward, done, trunc, *_ = env.step(action)
         next_state = torch.tensor(next_state["image"], dtype=torch.float32, device=agent.device) # Get the image from the state IMPLEMENT WRAPPER TO FIX THIS
-
+        
+        # Convert action to one-hot encoding
+        action_in = torch.zeros((3), dtype=torch.int, device=agent.device)
+        action_in[action] = 1
+        
         done = done or trunc # Check if episode is done
 
         # Store experience in buffer
@@ -143,9 +148,10 @@ def update_Agent(agent, target, buffer, batch_size):
     # Backpropagation
     agent.optimizer.zero_grad()
     loss.backward()
-    for param in agent.parameters():
+    for name, param in agent.named_parameters():
         if param.grad is not None:
             param.grad.data.clamp_(-1, 1)
+        
     agent.optimizer.step()
 
     # Update the target network

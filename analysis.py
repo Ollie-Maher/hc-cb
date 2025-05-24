@@ -5,7 +5,7 @@ import scipy.stats as stats
 rewards = np.empty((3, 2000), dtype=float)
 steps = np.empty((3, 2000), dtype=float)
 for i in range(3):
-    data_path = f"./experiments/base_test_start_weights_{i}/results.npy"
+    data_path = f"./experiments/fixed_all/results_{i}.npy"
     data = np.load(data_path)
     rewards[i] = data[:, 0]
     steps[i] = data[:, 1]
@@ -22,19 +22,19 @@ def get_rolling_vals(data, window_size=100):
     Returns:
     rolling_avg: The rolling average of the data.
     """
-    mean_avg = np.mean(data, axis=0)
-    std_avg = np.std(data, axis=0)
-    max_vals = np.max(data, axis=0)
-    min_vals = np.min(data, axis=0)
-    iqr = stats.iqr(data, axis=0)
+    rolling_data = np.empty((data.shape[0], data.shape[1] - window_size + 1), dtype=float)
+    for i in range(data.shape[0]):
+        rolling_data[i] = np.convolve(data[i], np.ones(window_size)/window_size, mode='valid')
 
-    rolling_mean = np.convolve(mean_avg, np.ones(window_size)/window_size, mode='valid')
-    rolling_std = np.convolve(std_avg, np.ones(window_size)/window_size, mode='valid')
-    rolling_max = np.convolve(max_vals, np.ones(window_size)/window_size, mode='valid')
-    rolling_min = np.convolve(min_vals, np.ones(window_size)/window_size, mode='valid')
-    rolling_iqr = np.convolve(iqr, np.ones(window_size)/window_size, mode='valid')
+    mean_avg = np.mean(rolling_data, axis=0)
+    std = np.std(rolling_data, axis=0)
+    max_vals = np.max(rolling_data, axis=0)
+    min_vals = np.min(rolling_data, axis=0)
+    iqr = stats.iqr(rolling_data, axis=0)
 
-    return rolling_mean, rolling_std, rolling_max, rolling_min, rolling_iqr
+    
+
+    return mean_avg, std, max_vals, min_vals, iqr
 
 ones = 0
 for i in range(rewards.shape[1]):
@@ -45,9 +45,9 @@ print(f"Number of ones in rewards: {ones}")
 # Plot raw data
 plt.figure(figsize=(12, 6))
 plt.subplot(1, 2, 1)
-plt.plot(rewards[0], label="Replicate 1", marker = '.', ls = 'None')
-plt.plot(rewards[1], label="Replicate 2", marker = '.', ls = 'None')
-plt.plot(rewards[2], label="Replicate 3", marker = '.', ls = 'None')
+plt.plot(rewards[0, :200], label="Replicate 1", marker = 'x', ls = 'None')
+plt.plot(rewards[1, :200], label="Replicate 2", marker = 'x', ls = 'None')
+plt.plot(rewards[2, :200], label="Replicate 3", marker = 'x', ls = 'None')
 plt.xlabel("Episode")
 plt.ylabel("Reward")
 plt.title("Rewards per Episode")
