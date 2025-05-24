@@ -124,7 +124,110 @@ class T_Maze(MiniGridEnv):
             self.task_count = 0
             self.goal_up = not self.goal_up # Swaps between goal up and goal down
         return super().reset()
-        
+
+class easy_T_Maze(MiniGridEnv):
+    def __init__(
+        self,
+        size=5,
+        agent_start_pos=(1, 2),
+        agent_start_dir=0,
+        max_steps: int | None = 100,
+        task_switch: int = 1,
+        agent_view_size: int = 3,
+        **kwargs,
+    ):
+        self.agent_start_pos = agent_start_pos
+        self.agent_start_dir = agent_start_dir
+
+        self.floor_colours = ['red','blue']
+
+        self.goal_up = True
+
+        mission_space = MissionSpace(mission_func=self._gen_mission)
+
+        self.task_switch = task_switch
+        self.task_count = 0
+
+        super().__init__(
+            mission_space=mission_space,
+            grid_size=size,
+            max_steps=max_steps,
+            agent_view_size=agent_view_size,
+            **kwargs,
+        )
+
+    @staticmethod
+    def _gen_mission():
+        return "Choose left or right based on starting information"
+    
+    def _reward(self) -> float:
+        """
+        Compute the reward to be given upon success
+        EDITED: Return full reward
+        """
+
+        return 1 #- 0.9 * (self.step_count / self.max_steps)
+
+    def _gen_grid(self, width, height):
+        # Gen grid
+        self.grid = Grid(width, height)
+        # Walls
+        self.grid.wall_rect(0, 0, width, height)
+        self.grid.set(2,1,Wall())
+        self.grid.set(2,3,Wall())
+        '''
+        WALLS:
+        XXXXX
+        X.X.X
+        X...X
+        X.X.X
+        XXXXX
+        '''
+        # Coloured walls
+        self.grid.set(1,1,Colour_Wall(self.floor_colours[self.goal_up]))
+        self.grid.set(1,3,Colour_Wall(self.floor_colours[self.goal_up]))
+
+        '''
+        +COLOURED WALLS:
+        XXXXX
+        XCX.X
+        X...X
+        XCX.X
+        XXXXX
+        .......
+        '''
+        # Goal + terminal
+        if self.goal_up:
+            self.grid.set(3,1,Goal())
+            self.grid.set(3,3,Colour_Wall(self.floor_colours[self.goal_up]))
+        else:
+            self.grid.set(3,3,Goal())
+            self.grid.set(3,1,Colour_Wall(self.floor_colours[self.goal_up]))
+        '''
+        +GOAL:
+        XXXXX
+        XCXGX
+        X...X
+        XCXGX
+        XXXXX
+        .......
+        '''
+        # Place the agent
+        if self.agent_start_pos is not None:
+            self.agent_pos = self.agent_start_pos
+            self.agent_dir = self.agent_start_dir
+        else:
+            self.place_agent()
+
+        self.mission = "Choose left or right based on starting information"
+    
+    def reset(self, *, seed = None, options = None,):
+        self.task_count += 1
+        if self.task_count >= self.task_switch: # Switch task after task_switch episodes
+            self.task_count = 0
+            self.goal_up = not self.goal_up # Swaps between goal up and goal down
+        return super().reset()
+
 class water_maze(MiniGridEnv):
     def __init__(
         self,

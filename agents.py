@@ -174,8 +174,10 @@ class HC_CB_agent(nn.Module):
             print(f"No CB for {'target' if is_target else 'agent'}")
             self.cb.requires_grad_(requires_grad = False)
 
+        '''# Print the parameters and their requires_grad status
         for name, param in self.named_parameters():
             print(f"Parameter {name}: {param.requires_grad}")
+        '''
 
         # Optimizer
         self.optimizer = torch.optim.Adam(self.parameters(), lr=self.lr)
